@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dpologdvinity/repodungeon/internal/dungeon"
 )
@@ -103,4 +104,34 @@ func (s *State) place() string {
 func (s *State) status() string {
 	return fmt.Sprintf("Depth %d/%d  HP %d/%d  ATK %d  LV %d  XP %d/%d  T %d  %s",
 		s.Depth+1, len(s.D.Levels), s.P.HP, s.P.MaxHP, s.P.ATK, s.P.Level, s.P.XP, 20*s.P.Level, s.Turn, s.place())
+}
+
+// Card is the shareable end-of-run summary, 44 columns wide.
+func (s *State) Card(now time.Time) string {
+	var outcome string
+	switch s.Outcome {
+	case Won:
+		outcome = "VICTORY! the boss is slain"
+	case Died:
+		outcome = fmt.Sprintf("slain by %s on depth %d", s.KilledBy, s.Depth+1)
+	default:
+		outcome = fmt.Sprintf("fled the dungeon on depth %d", s.Depth+1)
+	}
+	border := "+" + strings.Repeat("-", 42) + "+\n"
+	lines := []string{
+		fmt.Sprintf("repodungeon: %s @ %s", s.D.Repo, s.D.Short),
+		outcome,
+		fmt.Sprintf("depth %d/%d  level %d  turns %d", s.Depth+1, len(s.D.Levels), s.P.Level, s.Turn),
+		fmt.Sprintf("slain: %d files", s.Kills),
+		fmt.Sprintf("loot: %d TODO, %d FIXME", s.LootTodo, s.LootFixme),
+		"boss: " + s.D.BossName,
+		now.Format("2006-01-02"),
+	}
+	var b strings.Builder
+	b.WriteString(border)
+	for _, l := range lines {
+		fmt.Fprintf(&b, "| %-40s |\n", cut(l, 40))
+	}
+	b.WriteString(border)
+	return b.String()
 }

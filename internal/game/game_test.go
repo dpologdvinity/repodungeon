@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dpologdvinity/repodungeon/internal/dungeon"
 )
@@ -209,6 +210,43 @@ func TestQuit(t *testing.T) {
 		keys(s, k, "l")
 		if s.Outcome != Quit || !s.Done() || s.P.Pos.X != 1 || s.Turn != 0 {
 			t.Fatalf("%s: %v", k, s.Outcome)
+		}
+	}
+}
+
+func TestCard(t *testing.T) {
+	d := dungeon.FromArt([]string{"|@...|"})
+	d.Levels[0].Monsters = []dungeon.Monster{mon("main.go", 2, 0, 10, 50)}
+	s := New(d)
+	keys(s, ".")
+	now := time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
+	want := "+------------------------------------------+\n" +
+		"| repodungeon: demo @ abcdef0              |\n" +
+		"| slain by main.go on depth 1              |\n" +
+		"| depth 1/1  level 1  turns 1              |\n" +
+		"| slain: 0 files                           |\n" +
+		"| loot: 0 TODO, 0 FIXME                    |\n" +
+		"| boss: server.go, Devourer of Weekends    |\n" +
+		"| 2026-10-23                               |\n" +
+		"+------------------------------------------+\n"
+	if got := s.Card(now); got != want {
+		t.Fatalf("got\n%s", got)
+	}
+	q := New(dungeon.FromArt([]string{"|@..|"}))
+	keys(q, "q")
+	if !strings.Contains(q.Card(now), "| fled the dungeon on depth 1") {
+		t.Fatal("quit outcome")
+	}
+	w := New(dungeon.FromArt([]string{"|@..|"}))
+	w.Outcome = Won
+	if !strings.Contains(w.Card(now), "| VICTORY! the boss is slain") {
+		t.Fatal("win outcome")
+	}
+	long := New(dungeon.FromArt([]string{"|@..|"}))
+	long.D.BossName = strings.Repeat("x", 100)
+	for _, line := range strings.Split(strings.TrimSuffix(long.Card(now), "\n"), "\n") {
+		if len(line) != 44 {
+			t.Fatalf("line width %d: %q", len(line), line)
 		}
 	}
 }
