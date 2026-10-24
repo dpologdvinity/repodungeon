@@ -92,7 +92,8 @@ test -z "$(gofmt -l .)" && go vet ./... && go test ./...
 Generated maps are pinned by golden files. After an intended generation change,
 refresh them with `go test ./internal/dungeon/ -update` and review the diff.
 
-Read [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organised and
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and checks,
+[ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organised, and
 [docs/SPEC.md](docs/SPEC.md) for the exact rules.
 
 ## License

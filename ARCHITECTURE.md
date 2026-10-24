@@ -181,13 +181,26 @@ test -z "$(gofmt -l .)" && go vet ./... && go test ./...
 
 ## Build, CI and release
 
-- `.github/workflows/ci.yml` runs format, vet and tests on Linux and macOS, and
-  validates the GoReleaser config.
-- `.github/workflows/release.yml` runs on tags named `v*` and publishes binaries
-  for linux, darwin and windows on amd64 and arm64 with GoReleaser.
-- `.github/dependabot.yml` proposes weekly updates for Go modules and actions.
-- The version string is set at build time with `-X main.version`. For
-  `go install`, `main.go` falls back to the module version.
+`.github/workflows/ci.yml` runs on pushes and pull requests to `master`. Jobs:
+
+| Job | What it does |
+|---|---|
+| `deps` | `go mod download`, `go mod verify`, and checks `go.mod`/`go.sum` are tidy. |
+| `lint` | `gofmt`, `go vet`, `golangci-lint`, and `govulncheck`. |
+| `test` | `go test -race` with coverage on Linux and macOS. Fails if total coverage is below 85%. Coverage is written to the job summary and uploaded. |
+| `build` | `goreleaser check` and a snapshot build of every target. Runs only after `lint` and `test` pass. |
+
+Details: third-party actions are pinned to commit SHAs, the matrix has two
+entries and fails fast, old runs of the same ref are cancelled, and `setup-go`
+caches modules and builds.
+
+`.github/workflows/release.yml` runs on tags named `v*`. It re-runs format, vet
+and tests, then GoReleaser publishes binaries for linux, darwin and windows on
+amd64 and arm64. `.github/dependabot.yml` proposes weekly updates for Go
+modules and actions.
+
+The version string is set at build time with `-X main.version`. For
+`go install`, `main.go` falls back to the module version.
 
 ## Where to change things
 
