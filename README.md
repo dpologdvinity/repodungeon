@@ -1,5 +1,11 @@
 # repodungeon
 
+[![CI](https://github.com/dpologdvinity/repodungeon/actions/workflows/ci.yml/badge.svg)](https://github.com/dpologdvinity/repodungeon/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/dpologdvinity/repodungeon)](https://github.com/dpologdvinity/repodungeon/releases/latest)
+[![Go version](https://img.shields.io/github/go-mod/go-version/dpologdvinity/repodungeon)](go.mod)
+[![Go Reference](https://pkg.go.dev/badge/github.com/dpologdvinity/repodungeon.svg)](https://pkg.go.dev/github.com/dpologdvinity/repodungeon)
+[![License: MIT](https://img.shields.io/github/license/dpologdvinity/repodungeon)](LICENSE)
+
 Turn the git repository you are standing in into a small roguelike.
 Directories are rooms, files are monsters, TODO and FIXME comments are loot,
 and the boss is the file that changed most often. The same commit always gives
