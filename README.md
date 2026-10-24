@@ -1,0 +1,74 @@
+# repodungeon
+
+Turn the git repository you are standing in into a small roguelike.
+Directories are rooms, files are monsters, TODO and FIXME comments are loot,
+and the boss is the file that changed most often. The same commit always gives
+the same dungeon. Combat is turn-based, bump-to-attack, with permadeath. When
+the run ends, a shareable text card is printed.
+
+repodungeon is read-only: it only runs `git` commands that read, and only
+committed files appear (no ignored or untracked files).
+
+## Install
+
+```sh
+go install github.com/dpologdvinity/repodungeon@latest
+```
+
+Or download a binary for linux, macOS or Windows (amd64, arm64) from the
+[GitHub releases](https://github.com/dpologdvinity/repodungeon/releases).
+
+## Play
+
+```sh
+cd your-repo
+repodungeon          # or: repodungeon -C path/to/repo
+```
+
+| Key | Action |
+|---|---|
+| `h` `j` `k` `l` or arrows | move / attack |
+| `.` | wait a turn |
+| `>` | descend (on the stairs) |
+| `i` | inventory (`a`-`j` uses an item, `esc` closes) |
+| `q` | quit |
+
+## How your repo becomes a dungeon
+
+- The seed is the first 16 hex digits of the HEAD commit hash. Same commit,
+  same dungeon, same combat rolls for the same key presses.
+- Each directory is a room. Directory depth is the dungeon level: the repo
+  root is level 1, `src/` is level 2, `src/ui/` is level 3, and so on (at most
+  8 levels; deeper directories fold into depth 7). A level with more than 9
+  directories keeps the 8 busiest as rooms and merges the rest into `misc/`.
+- Each text file is a monster in its directory's room. Its HP grows with its
+  line count, and its ATK grows with how often it was changed in git history.
+  A room shows at most its 6 most-changed files. Binary files, symlinks,
+  submodules and files over 1 MiB never appear.
+- Each `TODO` becomes a potion (heals up to 10 HP) and each `FIXME` a scroll
+  (+1 ATK). A room holds at most 3 potions and 2 scrolls; the item remembers
+  which file it came from.
+- The boss waits in the last room of the deepest level: the file with the most
+  commits touching it, with a title like "Whisperer of Flaky Tests".
+- Slay monsters to gain XP and levels. Reach the boss and kill it to win. Die
+  and the run is over; there are no saves.
+
+## The card
+
+When the run ends, repodungeon prints a card to share:
+
+```
++------------------------------------------+
+| repodungeon: demo @ abcdef0              |
+| slain by main.go on depth 1              |
+| depth 1/1  level 1  turns 1              |
+| slain: 0 files                           |
+| loot: 0 TODO, 0 FIXME                    |
+| boss: server.go, Devourer of Weekends    |
+| 2026-10-23                               |
++------------------------------------------+
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
