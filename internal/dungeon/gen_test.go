@@ -1,7 +1,10 @@
 package dungeon
 
 import (
+	"errors"
 	"fmt"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -90,4 +93,116 @@ func TestBuildLevelInvariants(t *testing.T) {
 
 func TestBuildLevelGolden(t *testing.T) {
 	golden.Assert(t, "level_4_rooms", Ascii(buildLevel(specs(0, 9, 30, 100), false, NewRNG(1))))
+}
+
+func sampleRepo() *repo.Repo {
+	f := func(p string, lines, churn, todos, fixmes int) repo.File {
+		return repo.File{Path: p, Lines: lines, Churn: churn, Todos: todos, Fixmes: fixmes}
+	}
+	return &repo.Repo{Name: "demo", Head: "0123456789abcdef0123456789abcdef01234567", Files: []repo.File{
+		f("README.md", 40, 5, 2, 0), f("go.mod", 5, 2, 0, 0), f("main.go", 120, 30, 1, 1),
+		f("internal/game/game.go", 300, 12, 4, 0), f("internal/game/render.go", 80, 4, 0, 3),
+		f("internal/repo/repo.go", 150, 6, 0, 0), f("docs/SPEC.md", 400, 3, 0, 0),
+		{Path: "assets/logo.png", Binary: true},
+		f("a/b/c/d/e/f/g/h/deep.txt", 1, 1, 0, 0),
+	}}
+}
+
+func TestGenerateDeterministicAndBoss(t *testing.T) {
+	d1, err := Generate(sampleRepo())
+	if err != nil {
+		t.Fatal(err)
+	}
+	d2, _ := Generate(sampleRepo())
+	if !reflect.DeepEqual(d1, d2) {
+		t.Fatal("not deterministic")
+	}
+	if d1.Seed != 0x0123456789abcdef || d1.Short != "0123456" || d1.Repo != "demo" || len(d1.Levels) != 8 ||
+		d1.BossName != "main.go, Whisperer of Flaky Tests" {
+		t.Fatalf("%+v", d1)
+	}
+	last := d1.Levels[7]
+	b := last.Monsters[len(last.Monsters)-1]
+	if !b.Boss || b.Name != d1.BossName || b.HP != 50 || b.MaxHP != 50 || b.ATK != 5 || b.Glyph != '&' || last.HasStairs {
+		t.Fatalf("boss %+v", b)
+	}
+	for i, l := range d1.Levels[:7] {
+		if !l.HasStairs {
+			t.Fatalf("level %d has no stairs", i)
+		}
+	}
+	other := sampleRepo()
+	other.Head = "f" + other.Head[1:]
+	d3, _ := Generate(other)
+	if reflect.DeepEqual(d1.Levels[0].Tiles, d3.Levels[0].Tiles) && reflect.DeepEqual(d1.Levels[1].Tiles, d3.Levels[1].Tiles) {
+		t.Fatal("different seed gave the same map")
+	}
+}
+
+func TestGenerateEntities(t *testing.T) {
+	d, _ := Generate(sampleRepo())
+	l0 := d.Levels[0]
+	var mons, srcs []string
+	for _, m := range l0.Monsters {
+		mons = append(mons, m.Name)
+	}
+	for _, it := range l0.Items {
+		srcs = append(srcs, it.Kind.Name()+":"+it.Source)
+	}
+	if !slices.Equal(mons, []string{"README.md", "go.mod"}) {
+		t.Fatalf("monsters %v", mons)
+	}
+	if !slices.Equal(srcs, []string{"TODO potion:README.md", "TODO potion:README.md", "TODO potion:main.go", "FIXME scroll:main.go"}) {
+		t.Fatalf("items %v", srcs)
+	}
+	if m := l0.Monsters[0]; m.HP != 8 || m.ATK != 4 || m.Glyph != 'r' {
+		t.Fatalf("README monster %+v", m)
+	}
+	for i, l := range d.Levels {
+		used := map[Point]bool{l.Start: true}
+		if l.HasStairs {
+			used[l.Stairs] = true
+		}
+		r := reach(l, l.Start)
+		check := func(p Point, what string) {
+			if used[p] || l.At(p) != Floor || !r[p] {
+				t.Fatalf("level %d: %s at %v overlaps, is not floor, or is unreachable", i, what, p)
+			}
+			used[p] = true
+		}
+		for _, m := range l.Monsters {
+			check(m.Pos, m.Name)
+		}
+		for _, it := range l.Items {
+			check(it.Pos, it.Kind.Name())
+		}
+	}
+	golden.Assert(t, "generated", asciiAll(d))
+}
+
+func asciiAll(d *Dungeon) string {
+	var b strings.Builder
+	for i, l := range d.Levels {
+		fmt.Fprintf(&b, "=== level %d ===\n%s", i, Ascii(l))
+	}
+	return b.String()
+}
+
+func TestGenerateSingleRoom(t *testing.T) {
+	d, err := Generate(&repo.Repo{Name: "x", Head: strings.Repeat("0", 40), Files: []repo.File{
+		{Path: "a.go", Lines: 10, Churn: 1}, {Path: "b.go", Lines: 10, Churn: 5}}})
+	if err != nil || len(d.Levels) != 1 || d.Levels[0].HasStairs {
+		t.Fatalf("%v %+v", err, d)
+	}
+	ms := d.Levels[0].Monsters
+	if len(ms) != 2 || ms[0].Name != "a.go" || !ms[1].Boss || ms[1].Name != "b.go, Devourer of Weekends" {
+		t.Fatalf("%+v", ms)
+	}
+}
+
+func TestGenerateNoFiles(t *testing.T) {
+	_, err := Generate(&repo.Repo{Head: strings.Repeat("0", 40), Files: []repo.File{{Path: "x.png", Binary: true}}})
+	if !errors.Is(err, ErrNoFiles) {
+		t.Fatalf("%v", err)
+	}
 }

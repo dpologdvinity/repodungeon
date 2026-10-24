@@ -1,6 +1,16 @@
 package dungeon
 
-import "strings"
+import (
+	"errors"
+	"path"
+	"sort"
+	"strings"
+	"unicode"
+
+	"github.com/dpologdvinity/repodungeon/internal/repo"
+)
+
+var ErrNoFiles = errors.New("no text files to fight")
 
 const MapW, MapH = 80, 21
 
@@ -250,4 +260,110 @@ func (k ItemKind) Glyph() rune {
 		return '!'
 	}
 	return '?'
+}
+
+// Generate builds the whole dungeon from a scanned repo.
+func Generate(r *repo.Repo) (*Dungeon, error) {
+	var boss *repo.File
+	for i := range r.Files {
+		f := &r.Files[i]
+		if !f.Text() {
+			continue
+		}
+		if boss == nil || f.Churn > boss.Churn ||
+			f.Churn == boss.Churn && (f.Lines > boss.Lines || f.Lines == boss.Lines && f.Path < boss.Path) {
+			boss = f
+		}
+	}
+	if boss == nil {
+		return nil, ErrNoFiles
+	}
+	seed := SeedFromHash(r.Head)
+	d := &Dungeon{Seed: seed, Repo: r.Name, Short: r.Head[:7],
+		BossName: path.Base(boss.Path) + ", " + Epithet(seed)}
+	rng := NewRNG(seed)
+	plan := Plan(r.Files)
+	for i, rooms := range plan {
+		last := i == len(plan)-1
+		l := buildLevel(rooms, last, rng)
+		for ri, rs := range rooms {
+			populate(l, l.Rooms[ri], rs, boss, last && ri == len(rooms)-1, d.BossName, rng)
+		}
+		d.Levels = append(d.Levels, l)
+	}
+	return d, nil
+}
+
+func populate(l *Level, room Room, rs RoomSpec, boss *repo.File, hasBoss bool, bossName string, rng *RNG) {
+	used := map[Point]bool{l.Start: true}
+	if l.HasStairs {
+		used[l.Stairs] = true
+	}
+	var free []Point
+	for _, p := range room.Interior() {
+		if !used[p] {
+			free = append(free, p)
+		}
+	}
+	take := func() Point {
+		i := rng.IntN(len(free))
+		p := free[i]
+		free = append(free[:i], free[i+1:]...)
+		return p
+	}
+
+	var fs []repo.File
+	for _, f := range rs.Files {
+		if f.Path != boss.Path {
+			fs = append(fs, f)
+		}
+	}
+	sort.SliceStable(fs, func(i, j int) bool {
+		a, b := fs[i], fs[j]
+		if a.Churn != b.Churn {
+			return a.Churn > b.Churn
+		}
+		if a.Lines != b.Lines {
+			return a.Lines > b.Lines
+		}
+		return a.Path < b.Path
+	})
+	for _, f := range fs[:min(6, len(fs))] {
+		hp, atk := MonsterStats(f.Lines, f.Churn)
+		name := path.Base(f.Path)
+		l.Monsters = append(l.Monsters, Monster{Name: name, Path: f.Path, Glyph: monsterGlyph(name),
+			Pos: take(), HP: hp, MaxHP: hp, ATK: atk})
+	}
+
+	var todos, fixmes []string
+	for _, f := range rs.Files {
+		for i := 0; i < f.Todos; i++ {
+			todos = append(todos, f.Path)
+		}
+		for i := 0; i < f.Fixmes; i++ {
+			fixmes = append(fixmes, f.Path)
+		}
+	}
+	for _, src := range todos[:min(3, len(todos))] {
+		l.Items = append(l.Items, Item{Kind: Potion, Source: src, Pos: take()})
+	}
+	for _, src := range fixmes[:min(2, len(fixmes))] {
+		l.Items = append(l.Items, Item{Kind: Scroll, Source: src, Pos: take()})
+	}
+
+	if hasBoss {
+		hp, atk := BossStats(boss.Lines, boss.Churn)
+		l.Monsters = append(l.Monsters, Monster{Name: bossName, Path: boss.Path, Glyph: '&',
+			Pos: take(), HP: hp, MaxHP: hp, ATK: atk, Boss: true})
+	}
+}
+
+// monsterGlyph is the first ASCII letter of name, lowercased; 'm' if none.
+func monsterGlyph(name string) rune {
+	for _, c := range name {
+		if c < unicode.MaxASCII && unicode.IsLetter(c) {
+			return unicode.ToLower(c)
+		}
+	}
+	return 'm'
 }
