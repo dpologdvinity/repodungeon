@@ -168,10 +168,11 @@ func readBlobs(dir string, r *Repo, hashes []string, readIdx []int) error {
 	fail := func(e error) error {
 		cmd.Process.Kill()
 		cmd.Wait()
-		if stderr.Len() > 0 {
-			return &GitError{Args: []string{"cat-file", "--batch"}, Stderr: stderr.String()}
+		msg := stderr.String()
+		if msg == "" {
+			msg = e.Error()
 		}
-		return e
+		return &GitError{Args: []string{"cat-file", "--batch"}, Stderr: msg}
 	}
 	for _, i := range readIdx {
 		header, err := br.ReadString('\n')
@@ -205,5 +206,8 @@ func readBlobs(dir string, r *Repo, hashes []string, readIdx []int) error {
 		f.Todos = len(todoRe.FindAllIndex(body, -1))
 		f.Fixmes = len(fixmeRe.FindAllIndex(body, -1))
 	}
-	return cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		return &GitError{Args: []string{"cat-file", "--batch"}, Stderr: stderr.String() + err.Error()}
+	}
+	return nil
 }

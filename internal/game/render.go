@@ -30,7 +30,7 @@ func (s *State) Render() string {
 	if s.Mode == Inventory {
 		rows = append(rows, invHeader)
 		for i, it := range s.P.Inv {
-			rows = append(rows, fmt.Sprintf("%c) %s (from %s)", 'a'+i, it.Kind.Name(), it.Source))
+			rows = append(rows, cut(fmt.Sprintf("%c) %s (from %s)", 'a'+i, it.Kind.Name(), it.Source), screenW))
 		}
 		if len(s.P.Inv) == 0 {
 			rows = append(rows, "(empty)")

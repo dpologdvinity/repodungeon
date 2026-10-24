@@ -250,3 +250,14 @@ func TestCard(t *testing.T) {
 		}
 	}
 }
+
+func TestInventoryRowsFitScreen(t *testing.T) {
+	s := New(dungeon.FromArt([]string{"|@..|"}))
+	s.P.Inv = []dungeon.Item{{Kind: dungeon.Potion, Source: strings.Repeat("d/", 60) + "x.go"}}
+	keys(s, "i")
+	for i, line := range strings.Split(s.Render(), "\n") {
+		if n := len([]rune(line)); n > 80 {
+			t.Fatalf("row %d is %d runes", i, n)
+		}
+	}
+}
