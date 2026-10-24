@@ -150,7 +150,11 @@ Notes:
 
 `Model` wraps `*game.State`. `Update` forwards each key press to `Apply` and
 returns `tea.Quit` once the player quits, or on any key after the game is over.
-`View` returns `Render()` on the alternate screen. There is no other logic here.
+`View` returns the screen on the alternate screen, with colors added by
+`color.go`. Colors are plain ANSI codes wrapped around `Render()`'s text by
+row and glyph; they never change a visible character (a test strips them and
+compares). Bubble Tea downsamples them and drops them under `NO_COLOR`.
+`game` knows nothing about color, so its tests stay exact text.
 
 ## Command line (`internal/cli`)
 

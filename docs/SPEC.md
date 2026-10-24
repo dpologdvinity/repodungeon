@@ -21,7 +21,7 @@ to build it. If the plan and the spec disagree, the spec wins.
 - A summary card printed to stdout after the game.
 
 ### Non-goals (v0.1)
-- No saving, no going back up stairs, no diagonal moves, no ranged attacks, no colors.
+- No saving, no going back up stairs, no diagonal moves, no ranged attacks.
 - No line-of-sight: field of view is a plain radius (§7.4).
 - No terminal-size adaptation: the screen is a fixed 80x24.
 
@@ -37,7 +37,7 @@ to build it. If the plan and the spec disagree, the spec wins.
 | Tests | stdlib `testing`, golden files | |
 | Release | GoReleaser v2 + GitHub Actions | |
 
-Add no other dependencies (no lipgloss: v0.1 has no colors). Versions verified against `proxy.golang.org` on 2026-10-23.
+Add no other dependencies (no lipgloss: colors are plain ANSI codes, §8). Versions verified against `proxy.golang.org` on 2026-10-23.
 
 ## 3. CLI
 
@@ -340,6 +340,8 @@ func (m Model) Init() tea.Cmd                           // nil
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd)
 func (m Model) View() tea.View                          // tea.NewView(S.Render()), AltScreen = true
 ```
+**Colors.** `View` adds ANSI SGR color codes to `S.Render()` (walls light gray, floor and corridors dark gray, doors yellow, stairs bold yellow, player bold green, monsters red, boss bold red, potions magenta, scrolls cyan; HP green/yellow/red by health; headings yellow). Colors are decoration only: with the escape codes removed, the text equals `S.Render()` exactly. Bubble Tea lowers them to the terminal's color depth and drops them when `NO_COLOR` is set. The end card is plain text.
+
 `Update` on `tea.KeyPressMsg k`: if `S.Done()`, return `tea.Quit`. Else `S.Apply(k.String())`; if `S.Outcome == game.Quit`, return `tea.Quit`. Other messages: no-op.
 
 ## 9. Package layout and injection
@@ -396,7 +398,7 @@ func Run(args []string, stdout, stderr io.Writer, env Env) int
 - Homebrew formula and cask: free. npm: free.
 
 ## 13. Later (not v0.1)
-- Colors (lipgloss), line-of-sight FOV, diagonal moves, going back up.
+- Line-of-sight FOV, diagonal moves, going back up.
 - Monster special abilities by language (e.g. `.js` files multiply).
 - `--seed` override and a daily-challenge mode.
 - Saving the card to a file, and a high-score list in the user cache dir (never in the repo).

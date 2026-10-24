@@ -36,10 +36,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View draws the game screen in the alternate screen, so the shell
+// View draws the colored game screen in the alternate screen, so the shell
 // scrollback is left alone.
 func (m Model) View() tea.View {
-	v := tea.NewView(m.S.Render())
+	v := tea.NewView(colorize(m.S))
 	v.AltScreen = true
 	return v
 }

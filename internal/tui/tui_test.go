@@ -30,7 +30,7 @@ func TestModel(t *testing.T) {
 		t.Fatal("left arrow must move left")
 	}
 	v := next.View()
-	if v.Content != next.(Model).S.Render() || !v.AltScreen {
+	if strip(v.Content) != next.(Model).S.Render() || !v.AltScreen {
 		t.Fatal("view")
 	}
 	_, cmd = press(next, 'q', "q")

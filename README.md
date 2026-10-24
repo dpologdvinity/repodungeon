@@ -36,6 +36,10 @@ repodungeon          # or: repodungeon -C path/to/repo
 The game opens on a how-to-play screen. Press any key to start; press `?` at
 any time to read it again.
 
+The map is in color (walls gray, you green, monsters red, the boss bold red,
+potions magenta, scrolls cyan). Set `NO_COLOR=1` for plain text. The card printed
+at the end is always plain.
+
 | Key | Action |
 |---|---|
 | `h` `j` `k` `l` or arrows | move / attack |
