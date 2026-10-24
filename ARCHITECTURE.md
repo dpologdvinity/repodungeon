@@ -49,8 +49,9 @@ Rules that keep this tidy:
 
 - `dungeon` and `game` never import Bubble Tea. All game logic can be tested by
   calling `Apply` with key strings and reading the resulting state.
-- Only `tui`, `cli` and `main` import Bubble Tea. It is the only third-party
-  dependency.
+- Only `tui`, `cli` and `main` import Bubble Tea. `main` also uses
+  `charmbracelet/x/term` to detect a real terminal (`/dev/null` and pipes are
+  rejected). These are the only third-party dependencies.
 - `time.Now()` is called only in `main.go`. The card date comes from
   `Env.Now`, so tests can fix it.
 - All randomness goes through `dungeon.RNG`. Nothing uses `math/rand`.
@@ -196,7 +197,8 @@ caches modules and builds.
 
 `.github/workflows/release.yml` runs on tags named `v*`. It re-runs format, vet
 and tests, then GoReleaser publishes binaries for linux, darwin and windows on
-amd64 and arm64. `.github/dependabot.yml` proposes weekly updates for Go
+amd64 and arm64 and pushes a Homebrew cask to `dpologdvinity/homebrew-tap`
+(secret `HOMEBREW_TAP_TOKEN`). `.github/dependabot.yml` proposes weekly updates for Go
 modules and actions.
 
 The version string is set at build time with `-X main.version`. For

@@ -47,8 +47,9 @@ To check the release build locally: `goreleaser check` and
   comment in plain English. Explain why, not only what.
 - **Errors** are returned, not hidden. Do not add `//nolint` or skip tests to
   get a green build; fix the cause.
-- **Dependencies.** The only third-party dependency is Bubble Tea. Ask before
-  adding another.
+- **Dependencies.** The only third-party dependencies are Bubble Tea and
+  `charmbracelet/x/term` (terminal detection), which Bubble Tea already uses.
+  Ask before adding another.
 
 ## Commits and pull requests
 
@@ -65,4 +66,5 @@ To check the release build locally: `goreleaser check` and
 
 Maintainers release by pushing a tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 The `release` workflow tests, then GoReleaser publishes binaries for linux,
-darwin and windows on amd64 and arm64.
+darwin and windows on amd64 and arm64 and updates the Homebrew cask in
+`dpologdvinity/homebrew-tap` (needs the `HOMEBREW_TAP_TOKEN` secret).

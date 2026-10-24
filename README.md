@@ -12,6 +12,12 @@ committed files appear (no ignored or untracked files).
 ## Install
 
 ```sh
+brew install dpologdvinity/tap/repodungeon
+```
+
+Or with Go:
+
+```sh
 go install github.com/dpologdvinity/repodungeon@latest
 ```
 
