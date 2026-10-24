@@ -12,6 +12,8 @@ import (
 	"github.com/dpologdvinity/repodungeon/internal/repo"
 )
 
+// specs builds room specs with the given file counts, named r0/, r1/, and so
+// on. Each file has one line.
 func specs(sizes ...int) []RoomSpec {
 	var out []RoomSpec
 	for i, n := range sizes {
@@ -42,6 +44,8 @@ func reach(l *Level, start Point) map[Point]bool {
 	return seen
 }
 
+// TestFromArtAsciiRoundTrip proves FromArt and Ascii are inverses on a small
+// map, and that FromArt sets the start, the stairs and the fixed metadata.
 func TestFromArtAsciiRoundTrip(t *testing.T) {
 	art := []string{"-------", "|@.+#>|", "-------"}
 	d := FromArt(art)
@@ -54,6 +58,10 @@ func TestFromArtAsciiRoundTrip(t *testing.T) {
 	}
 }
 
+// TestBuildLevelInvariants proves for 1 to 9 rooms and many seeds that a
+// level has the right size and room count, that every walkable tile is
+// reachable from the start, and that the start and stairs sit where the spec
+// says (no stairs on the last level).
 func TestBuildLevelInvariants(t *testing.T) {
 	for n := 1; n <= 9; n++ {
 		for seed := uint64(0); seed < 20; seed++ {
@@ -91,10 +99,14 @@ func TestBuildLevelInvariants(t *testing.T) {
 	}
 }
 
+// TestBuildLevelGolden pins the exact map of a fixed level against a golden
+// file, so any change to the layout or the RNG call order is caught.
 func TestBuildLevelGolden(t *testing.T) {
 	golden.Assert(t, "level_4_rooms", Ascii(buildLevel(specs(0, 9, 30, 100), false, NewRNG(1))))
 }
 
+// sampleRepo returns a small fixed repo used by the Generate tests. It has a
+// binary file, a deep directory and a clear boss (main.go).
 func sampleRepo() *repo.Repo {
 	f := func(p string, lines, churn, todos, fixmes int) repo.File {
 		return repo.File{Path: p, Lines: lines, Churn: churn, Todos: todos, Fixmes: fixmes}
@@ -108,6 +120,9 @@ func sampleRepo() *repo.Repo {
 	}}
 }
 
+// TestGenerateDeterministicAndBoss proves Generate gives equal results for
+// equal input, picks the right boss with the right stats on the last level
+// only, adds stairs on every other level, and changes the map with the seed.
 func TestGenerateDeterministicAndBoss(t *testing.T) {
 	d1, err := Generate(sampleRepo())
 	if err != nil {
@@ -139,6 +154,10 @@ func TestGenerateDeterministicAndBoss(t *testing.T) {
 	}
 }
 
+// TestGenerateEntities proves the monsters and items of level 0 are the
+// expected ones, and that on every level each entity lies on its own reachable
+// floor tile, away from the start and the stairs. It also pins all levels
+// against a golden file.
 func TestGenerateEntities(t *testing.T) {
 	d, _ := Generate(sampleRepo())
 	l0 := d.Levels[0]
@@ -180,6 +199,7 @@ func TestGenerateEntities(t *testing.T) {
 	golden.Assert(t, "generated", asciiAll(d))
 }
 
+// asciiAll renders every level of d, each under a "=== level N ===" header.
 func asciiAll(d *Dungeon) string {
 	var b strings.Builder
 	for i, l := range d.Levels {
@@ -188,6 +208,8 @@ func asciiAll(d *Dungeon) string {
 	return b.String()
 }
 
+// TestGenerateSingleRoom proves a one-room repo gives one level with no
+// stairs, with the boss placed after the other monster.
 func TestGenerateSingleRoom(t *testing.T) {
 	d, err := Generate(&repo.Repo{Name: "x", Head: strings.Repeat("0", 40), Files: []repo.File{
 		{Path: "a.go", Lines: 10, Churn: 1}, {Path: "b.go", Lines: 10, Churn: 5}}})
@@ -200,6 +222,8 @@ func TestGenerateSingleRoom(t *testing.T) {
 	}
 }
 
+// TestGenerateNoFiles proves a repo with only binary files returns
+// ErrNoFiles.
 func TestGenerateNoFiles(t *testing.T) {
 	_, err := Generate(&repo.Repo{Head: strings.Repeat("0", 40), Files: []repo.File{{Path: "x.png", Binary: true}}})
 	if !errors.Is(err, ErrNoFiles) {

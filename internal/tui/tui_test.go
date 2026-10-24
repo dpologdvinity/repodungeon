@@ -9,10 +9,13 @@ import (
 	"github.com/dpologdvinity/repodungeon/internal/game"
 )
 
+// press sends m a key press with the given key code and text, as the terminal would.
 func press(m tea.Model, code rune, text string) (tea.Model, tea.Cmd) {
 	return m.Update(tea.KeyPressMsg{Code: code, Text: text})
 }
 
+// TestModel proves that Init returns nil, keys move the player (letters and arrows),
+// View shows the render in the alternate screen, and q returns tea.Quit.
 func TestModel(t *testing.T) {
 	m := Model{S: game.New(dungeon.FromArt([]string{"|@..|"}))}
 	if m.Init() != nil {

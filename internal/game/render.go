@@ -9,13 +9,20 @@ import (
 )
 
 const (
-	screenW   = 80
-	mapRows   = dungeon.MapH
-	helpLine  = "hjkl/arrows move  . wait  > descend  i inventory  q quit"
-	overLine  = "Game over. Press any key."
+	// screenW is the screen width in columns (SPEC 7.7).
+	screenW = 80
+	// mapRows is the number of map rows; the screen is 1 message row + map + status + help = 24.
+	mapRows = dungeon.MapH
+	// helpLine is the last row while the run is going.
+	helpLine = "hjkl/arrows move  . wait  > descend  i inventory  q quit"
+	// overLine replaces helpLine once the run is over.
+	overLine = "Game over. Press any key."
+	// invHeader is the first row of the inventory screen under the message row.
 	invHeader = "Inventory (a-j to use, esc to close)"
 )
 
+// cut truncates s to at most n runes. It counts runes, not bytes, so a
+// multi-byte path is never split and rows never exceed the screen width.
 func cut(s string, n int) string {
 	if r := []rune(s); len(r) > n {
 		return string(r[:n])
@@ -25,6 +32,7 @@ func cut(s string, n int) string {
 
 // Render draws the 80x24 screen as plain text.
 func (s *State) Render() string {
+	// rows are built without trailing spaces; the final loop also adds the newline.
 	var rows []string
 	rows = append(rows, cut(strings.Join(s.Msgs, " "), screenW))
 	if s.Mode == Inventory {
@@ -35,6 +43,7 @@ func (s *State) Render() string {
 		if len(s.P.Inv) == 0 {
 			rows = append(rows, "(empty)")
 		}
+		// Pad so the status row stays on screen row 23, as in Play mode.
 		for len(rows) < 1+mapRows {
 			rows = append(rows, "")
 		}
@@ -55,6 +64,8 @@ func (s *State) Render() string {
 	return b.String()
 }
 
+// mapRows draws the map area: mapRows rows of screenW runes, each cell from cell.
+// Part of the screen outside the level is blank.
 func (s *State) mapRows() []string {
 	l := s.level()
 	out := make([]string, mapRows)
@@ -68,6 +79,10 @@ func (s *State) mapRows() []string {
 	return out
 }
 
+// cell returns the glyph for tile p of level l.
+// In view, the draw order is player, living monster, item, terrain.
+// Out of view, remembered tiles show terrain only, so monsters and items
+// vanish when they leave sight. Never-seen tiles and tiles off the level are blank.
 func (s *State) cell(l *dungeon.Level, p dungeon.Point) rune {
 	if p.X >= l.W || p.Y >= l.H {
 		return ' '
@@ -92,6 +107,7 @@ func (s *State) cell(l *dungeon.Level, p dungeon.Point) rune {
 	return ' '
 }
 
+// place names the room the player stands in, or "corridor" outside all rooms.
 func (s *State) place() string {
 	for _, r := range s.level().Rooms {
 		if r.Contains(s.P.Pos) {
@@ -101,6 +117,7 @@ func (s *State) place() string {
 	return "corridor"
 }
 
+// status builds the status row. XP shows the threshold for the next level (20*Level).
 func (s *State) status() string {
 	return fmt.Sprintf("Depth %d/%d  HP %d/%d  ATK %d  LV %d  XP %d/%d  T %d  %s",
 		s.Depth+1, len(s.D.Levels), s.P.HP, s.P.MaxHP, s.P.ATK, s.P.Level, s.P.XP, 20*s.P.Level, s.Turn, s.place())
@@ -117,6 +134,7 @@ func (s *State) Card(now time.Time) string {
 	default:
 		outcome = fmt.Sprintf("fled the dungeon on depth %d", s.Depth+1)
 	}
+	// 42 dashes plus two corners make the 44-column card.
 	border := "+" + strings.Repeat("-", 42) + "+\n"
 	lines := []string{
 		fmt.Sprintf("repodungeon: %s @ %s", s.D.Repo, s.D.Short),
@@ -130,6 +148,7 @@ func (s *State) Card(now time.Time) string {
 	var b strings.Builder
 	b.WriteString(border)
 	for _, l := range lines {
+		// Pad or cut each line to exactly 40 columns inside the border.
 		fmt.Fprintf(&b, "| %-40s |\n", cut(l, 40))
 	}
 	b.WriteString(border)

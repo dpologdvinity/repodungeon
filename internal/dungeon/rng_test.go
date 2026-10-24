@@ -5,6 +5,9 @@ import (
 	"testing"
 )
 
+// TestRNGVectors pins the exact output of Next, Perm, IntN and SeedFromHash.
+// These values are part of the dungeon format, so a change here means every
+// existing dungeon changes.
 func TestRNGVectors(t *testing.T) {
 	r := NewRNG(0)
 	for _, want := range []uint64{0xe220a8397b1dcdaf, 0x6e789e6aa1b965f4, 0x06c45d188009454f} {
@@ -28,6 +31,8 @@ func TestRNGVectors(t *testing.T) {
 	}
 }
 
+// TestStats checks the stat formulas (MonsterStats, BossStats, RoomSize,
+// Epithet) at their low, middle and capped values.
 func TestStats(t *testing.T) {
 	for _, c := range [][4]int{{0, 0, 2, 1}, {100, 0, 12, 1}, {100, 1, 12, 2}, {9, 3, 5, 3}, {10000, 1000, 60, 8}} {
 		if hp, atk := MonsterStats(c[0], c[1]); hp != c[2] || atk != c[3] {

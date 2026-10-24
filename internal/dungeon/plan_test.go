@@ -8,8 +8,10 @@ import (
 	"github.com/dpologdvinity/repodungeon/internal/repo"
 )
 
+// tf returns a one-line text file at path, for building Plan input.
 func tf(path string) repo.File { return repo.File{Path: path, Lines: 1} }
 
+// names returns the room names of rs, in order.
 func names(rs []RoomSpec) []string {
 	var out []string
 	for _, r := range rs {
@@ -18,6 +20,9 @@ func names(rs []RoomSpec) []string {
 	return out
 }
 
+// TestPlanLevels proves rooms are grouped by directory depth, that binary
+// files are skipped, that parent directories get (empty) rooms, and that files
+// in a room are sorted by path.
 func TestPlanLevels(t *testing.T) {
 	bin := tf("assets/logo.png")
 	bin.Binary = true
@@ -35,6 +40,8 @@ func TestPlanLevels(t *testing.T) {
 	}
 }
 
+// TestPlanFoldsDeepDirs proves a directory deeper than MaxDepth folds into its
+// depth-7 ancestor, so there are 8 levels at most.
 func TestPlanFoldsDeepDirs(t *testing.T) {
 	p := Plan([]repo.File{tf("a/b/c/d/e/f/g/h/i/deep.txt")})
 	if len(p) != 8 || !slices.Equal(names(p[7]), []string{"a/b/c/d/e/f/g/"}) || len(p[7][0].Files) != 1 {
@@ -42,6 +49,9 @@ func TestPlanFoldsDeepDirs(t *testing.T) {
 	}
 }
 
+// TestPlanMisc proves that a level with more than MaxRooms directories keeps
+// the busiest ones, folds the rest into a trailing "misc/" room, and keeps
+// the kept rooms in name order.
 func TestPlanMisc(t *testing.T) {
 	var fs []repo.File
 	for i := 0; i < 12; i++ {

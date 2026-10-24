@@ -9,16 +9,20 @@ import (
 	"github.com/dpologdvinity/repodungeon/internal/dungeon"
 )
 
+// mon builds a plain test monster named name at (x, y) with full HP hp and attack atk.
 func mon(name string, x, y, hp, atk int) dungeon.Monster {
 	return dungeon.Monster{Name: name, Glyph: 'm', Pos: dungeon.Point{X: x, Y: y}, HP: hp, MaxHP: hp, ATK: atk}
 }
 
+// keys applies the key strings to s in order.
 func keys(s *State, ks ...string) {
 	for _, k := range ks {
 		s.Apply(k)
 	}
 }
 
+// TestMoveAndWalls proves that moves and waits take a turn, a wall bump does not,
+// unknown keys do nothing, and the field-of-view radius is 5.
 func TestMoveAndWalls(t *testing.T) {
 	s := New(dungeon.FromArt([]string{"-------", "|@....|", "|.....|", "-------"}))
 	keys(s, "l", "l")
@@ -39,6 +43,9 @@ func TestMoveAndWalls(t *testing.T) {
 	}
 }
 
+// TestRender proves the exact 80x24 screen text (SPEC 7.7): message row, map with
+// field-of-view clipping, status row and help row. It also proves that New wakes
+// monsters already in view.
 func TestRender(t *testing.T) {
 	d := dungeon.FromArt([]string{"-------", "|@....|", "-------"})
 	l := d.Levels[0]
@@ -59,6 +66,8 @@ func TestRender(t *testing.T) {
 	}
 }
 
+// TestCombatSequence proves damage rolls, message order and turn order in a fight:
+// the player strikes first, the monster answers, and a kill gives XP and a kill count.
 func TestCombatSequence(t *testing.T) {
 	d := dungeon.FromArt([]string{"-------", "|@....|", "-------"})
 	d.Levels[0].Monsters = []dungeon.Monster{mon("main.go", 3, 1, 4, 2)}
@@ -79,6 +88,8 @@ func TestCombatSequence(t *testing.T) {
 	}
 }
 
+// TestLevelUpLoop proves that one kill can give several levels in a row and that
+// leftover XP carries over.
 func TestLevelUpLoop(t *testing.T) {
 	d := dungeon.FromArt([]string{"|@...|"})
 	m := mon("main.go", 2, 0, 1, 1)
@@ -92,6 +103,7 @@ func TestLevelUpLoop(t *testing.T) {
 	}
 }
 
+// TestBossWin proves that slaying the boss sets Outcome to Won and prints the win message last.
 func TestBossWin(t *testing.T) {
 	d := dungeon.FromArt([]string{"|@...|"})
 	b := mon("server.go, Devourer of Weekends", 2, 0, 1, 5)
@@ -106,6 +118,8 @@ func TestBossWin(t *testing.T) {
 	}
 }
 
+// TestMonsterChase proves the monster step rule: move along the longer axis first,
+// and a monster out of view stays asleep and does not move.
 func TestMonsterChase(t *testing.T) {
 	d := dungeon.FromArt([]string{"-------------", "|@..........|", "|...........|", "|...........|", "-------------"})
 	d.Levels[0].Monsters = []dungeon.Monster{mon("a", 5, 2, 5, 1), mon("b", 3, 3, 5, 1), mon("c", 10, 3, 5, 1)}
@@ -118,6 +132,8 @@ func TestMonsterChase(t *testing.T) {
 	}
 }
 
+// TestDeathIgnoresLaterKeys proves that a killing blow sets Died, HP 0 and KilledBy,
+// that later keys change nothing, and that Render shows the game-over line.
 func TestDeathIgnoresLaterKeys(t *testing.T) {
 	d := dungeon.FromArt([]string{"|@...|"})
 	d.Levels[0].Monsters = []dungeon.Monster{mon("main.go", 2, 0, 10, 50)}
@@ -136,6 +152,8 @@ func TestDeathIgnoresLaterKeys(t *testing.T) {
 	}
 }
 
+// TestItemsAndInventory proves pickup, the inventory screen, using a potion (capped
+// heal) and a scroll, that a letter with no item does nothing, and that esc closes the menu.
 func TestItemsAndInventory(t *testing.T) {
 	d := dungeon.FromArt([]string{"|@....|"})
 	d.Levels[0].Items = []dungeon.Item{
@@ -178,6 +196,7 @@ func TestItemsAndInventory(t *testing.T) {
 	}
 }
 
+// TestPackFull proves that a full pack leaves the item on the floor and says so.
 func TestPackFull(t *testing.T) {
 	d := dungeon.FromArt([]string{"|@..|"})
 	d.Levels[0].Items = []dungeon.Item{{Kind: dungeon.Potion, Source: "x", Pos: dungeon.Point{X: 2, Y: 0}}}
@@ -191,6 +210,8 @@ func TestPackFull(t *testing.T) {
 	}
 }
 
+// TestStairs proves that > without stairs costs nothing, and that descending moves to
+// the next level's start and costs exactly one turn.
 func TestStairs(t *testing.T) {
 	s := New(dungeon.FromArt([]string{"-----", "|@.>|", "-----"}, []string{"-----", "|.@.|", "-----"}))
 	keys(s, ">")
@@ -204,6 +225,7 @@ func TestStairs(t *testing.T) {
 	}
 }
 
+// TestQuit proves that q and ctrl+c end the run as Quit and later keys are ignored.
 func TestQuit(t *testing.T) {
 	for _, k := range []string{"q", "ctrl+c"} {
 		s := New(dungeon.FromArt([]string{"|@..|"}))
@@ -214,6 +236,8 @@ func TestQuit(t *testing.T) {
 	}
 }
 
+// TestCard proves the exact card text for death, quit and win, and that long lines
+// are cut so every card row is 44 columns wide.
 func TestCard(t *testing.T) {
 	d := dungeon.FromArt([]string{"|@...|"})
 	d.Levels[0].Monsters = []dungeon.Monster{mon("main.go", 2, 0, 10, 50)}
@@ -251,6 +275,8 @@ func TestCard(t *testing.T) {
 	}
 }
 
+// TestInventoryRowsFitScreen proves that a very long item source path is cut so no
+// inventory row exceeds 80 runes.
 func TestInventoryRowsFitScreen(t *testing.T) {
 	s := New(dungeon.FromArt([]string{"|@..|"}))
 	s.P.Inv = []dungeon.Item{{Kind: dungeon.Potion, Source: strings.Repeat("d/", 60) + "x.go"}}

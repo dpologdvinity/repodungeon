@@ -12,6 +12,11 @@ import (
 	"github.com/dpologdvinity/repodungeon/internal/testrepo"
 )
 
+// TestScan is the main happy-path test. It proves that Scan lists only
+// committed regular files (not ignored, untracked, symlink or gitlink
+// entries), sorts them by path, counts lines, TODO and FIXME words and
+// churn, counts a last line with no newline, and flags binary and oversize
+// files.
 func TestScan(t *testing.T) {
 	r := testrepo.New(t)
 	r.Write("README.md", "# demo\nTODO: one\nFIXME: two\nTODO three\nTODOS not counted\n")
@@ -68,6 +73,8 @@ func TestScan(t *testing.T) {
 	}
 }
 
+// TestScanErrors proves that a plain directory gives ErrNotRepo and a
+// repository with no commits gives ErrNoCommits.
 func TestScanErrors(t *testing.T) {
 	if _, err := Scan(t.TempDir()); !errors.Is(err, ErrNotRepo) {
 		t.Errorf("not repo: %v", err)
@@ -77,6 +84,9 @@ func TestScanErrors(t *testing.T) {
 	}
 }
 
+// TestScanSanitizesControlCharsInPaths proves that control characters in a
+// path (an escape code and a newline) become '?', and that the file still
+// gets its churn, so the log lookup uses the original path.
 func TestScanSanitizesControlCharsInPaths(t *testing.T) {
 	r := testrepo.New(t)
 	r.Write("e\x1b[31mRED\nX.go", "hi\n")
@@ -90,6 +100,9 @@ func TestScanSanitizesControlCharsInPaths(t *testing.T) {
 	}
 }
 
+// TestScanSkipsBlobsMissingFromPartialClone proves that a blob absent from
+// a blobless partial clone is marked Skipped, with no error and no network
+// fetch. The test is skipped if this git cannot make such a clone.
 func TestScanSkipsBlobsMissingFromPartialClone(t *testing.T) {
 	src := testrepo.New(t)
 	src.Git("config", "uploadpack.allowFilter", "true")
@@ -111,6 +124,8 @@ func TestScanSkipsBlobsMissingFromPartialClone(t *testing.T) {
 	}
 }
 
+// TestScanKeepsSanitizedPathsUnique proves that two paths which sanitize to
+// the same text get distinct names (a second one gets the suffix ~2).
 func TestScanKeepsSanitizedPathsUnique(t *testing.T) {
 	r := testrepo.New(t)
 	r.Write("a\x01.go", "x\n")

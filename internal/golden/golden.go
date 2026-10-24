@@ -8,9 +8,14 @@ import (
 	"testing"
 )
 
+// update is the -update test flag. When set, Assert rewrites the golden
+// files from the current output instead of comparing against them.
 var update = flag.Bool("update", false, "rewrite golden files")
 
 // Assert compares got with testdata/golden/<name>.txt; -update rewrites it.
+// The path is relative to the package under test, because go test runs in
+// the package directory. A missing golden file fails the test. A mismatch
+// reports both texts so the difference can be read in the test log.
 func Assert(t *testing.T, name, got string) {
 	t.Helper()
 	path := filepath.Join("testdata", "golden", name+".txt")

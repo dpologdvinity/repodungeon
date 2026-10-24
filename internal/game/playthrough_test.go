@@ -17,12 +17,14 @@ func nextKey(s *State, targets map[dungeon.Point]bool) string {
 		d dungeon.Point
 		k string
 	}{{dungeon.Point{X: 1}, "l"}, {dungeon.Point{X: -1}, "h"}, {dungeon.Point{Y: 1}, "j"}, {dungeon.Point{Y: -1}, "k"}}
+	// first maps each reached tile to the first key of the path that reaches it (breadth-first search).
 	first := map[dungeon.Point]string{}
 	q := []dungeon.Point{s.P.Pos}
 	seen := map[dungeon.Point]bool{s.P.Pos: true}
 	for len(q) > 0 {
 		p := q[0]
 		q = q[1:]
+		// The first target popped is a nearest one; its first step is the answer.
 		if targets[p] && p != s.P.Pos {
 			return first[p]
 		}
@@ -33,12 +35,14 @@ func nextKey(s *State, targets map[dungeon.Point]bool) string {
 			}
 			seen[n] = true
 			first[n] = dk.k
+			// Neighbours of the start use their own key; others inherit the parent's first key.
 			if p != s.P.Pos {
 				first[n] = first[p]
 			}
 			q = append(q, n)
 		}
 	}
+	// No reachable target: wait a turn.
 	return "."
 }
 
@@ -55,6 +59,7 @@ func TestPlaythrough(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := New(d)
+	// The bot is a test helper only; this makes the first potion matter.
 	s.P.HP = 20 // so the first potion actually heals
 	drank, deepest := false, 0
 	for i := 0; i < 5000 && !s.Done(); i++ {
@@ -64,6 +69,7 @@ func TestPlaythrough(t *testing.T) {
 			targets[it.Pos] = true
 		}
 		switch {
+		// Priority: heal when hurt, then collect loot, then take stairs, then hunt the boss.
 		case len(s.P.Inv) > 0 && s.P.HP < s.P.MaxHP:
 			keys(s, "i", "a")
 			drank = true
@@ -81,11 +87,13 @@ func TestPlaythrough(t *testing.T) {
 			}
 			keys(s, nextKey(s, targets))
 		}
+		// Track depth reached, to prove stairs work.
 		deepest = max(deepest, s.Depth)
 	}
 	if !s.Done() || deepest < 1 || !drank {
 		t.Fatalf("outcome %v deepest %d drank %v turn %d", s.Outcome, deepest, drank, s.Turn)
 	}
+	// The run is over by now, so the card must be printable. Its short hash comes from Head.
 	card := s.Card(time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC))
 	if !strings.Contains(card, "| repodungeon: bot @ 0000000") {
 		t.Fatalf("card:\n%s", card)

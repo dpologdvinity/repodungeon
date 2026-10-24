@@ -1,4 +1,9 @@
 // Package game is the pure roguelike state machine, driven by key strings.
+//
+// It has no Bubble Tea, terminal or clock dependency. State.Apply takes one
+// key string (as Bubble Tea's KeyPressMsg.String() would give it) and changes
+// the state. State.Render and State.Card turn the state into plain text.
+// Rules are specified in docs/SPEC.md sections 6 and 7.
 package game
 
 import (
@@ -8,48 +13,79 @@ import (
 	"github.com/dpologdvinity/repodungeon/internal/dungeon"
 )
 
+// Mode is the input mode of the game. It decides how keys are read.
 type Mode int
 
 const (
+	// Play is the normal mode: movement, waiting, stairs and opening the inventory.
 	Play Mode = iota
+	// Inventory is the item menu. Keys a-j use items, esc or i closes it.
 	Inventory
 )
 
+// Outcome says whether the run is still going and, if not, how it ended.
 type Outcome int
 
 const (
+	// Running means the run is not over yet. It is the zero value.
 	Running Outcome = iota
+	// Won means the player slew the boss (SPEC 7.3).
 	Won
+	// Died means the player's HP reached 0 in the monster phase.
 	Died
+	// Quit means the player pressed q or ctrl+c.
 	Quit
 )
 
 const (
-	packSize  = 10
+	// packSize is the maximum number of items in the pack (SPEC 7.5).
+	packSize = 10
+	// fovRadius is the field-of-view radius in tiles (SPEC 7.4).
 	fovRadius = 5
 )
 
+// Player is the hero: position, stats and the pack.
 type Player struct {
-	Pos                       dungeon.Point
+	// Pos is the player's tile on the current level.
+	Pos dungeon.Point
+	// HP is current health, MaxHP its cap. ATK is attack strength. Level and XP track progress (SPEC 7.3).
 	HP, MaxHP, ATK, Level, XP int
-	Inv                       []dungeon.Item
+	// Inv is the pack, in pickup order. Using an item keeps the order of the rest.
+	Inv []dungeon.Item
 }
 
+// State is the whole game. Apply is the only way to change it from outside.
+// It has no I/O and no clock, so tests can drive it with key strings.
 type State struct {
-	D                   *dungeon.Dungeon
-	Depth               int // index into D.Levels
-	P                   Player
-	Mode                Mode
-	Outcome             Outcome
-	Turn                int
-	Msgs                []string
-	Kills               int
-	KilledBy            string
+	// D is the generated dungeon. Its levels, items and monsters are mutated during play.
+	D *dungeon.Dungeon
+	// Depth is the zero-based index of the current level.
+	Depth int // index into D.Levels
+	// P is the player.
+	P Player
+	// Mode is the current input mode.
+	Mode Mode
+	// Outcome is Running until the run ends. After that Apply ignores all keys.
+	Outcome Outcome
+	// Turn counts turns that took time. Waiting, moving, attacking, using items and descending count.
+	Turn int
+	// Msgs are the messages from the last key press. Apply clears them first.
+	Msgs []string
+	// Kills is the number of monsters slain.
+	Kills int
+	// KilledBy is the name of the monster that killed the player. Empty unless Outcome is Died.
+	KilledBy string
+	// LootTodo and LootFixme count potions and scrolls picked up, for the card (SPEC 7.8).
 	LootTodo, LootFixme int // items picked up
-	seen                [][]bool
-	rng                 *dungeon.RNG // combat RNG
+	// seen holds one flat W*H grid per level. A true tile was in view at some point and is drawn from memory.
+	seen [][]bool
+	// rng is the combat RNG. It is seeded from the dungeon seed, so a run is reproducible from the key list.
+	rng *dungeon.RNG // combat RNG
 }
 
+// New starts a run on level 0 of d with the starting stats (30 HP, 3 ATK, level 1).
+// It computes the first field of view, so monsters in sight are awake from turn 0.
+// d must have at least one level.
 func New(d *dungeon.Dungeon) *State {
 	s := &State{D: d, rng: dungeon.NewRNG(d.Seed + 1)}
 	s.P = Player{Pos: d.Levels[0].Start, HP: 30, MaxHP: 30, ATK: 3, Level: 1}
@@ -61,8 +97,10 @@ func New(d *dungeon.Dungeon) *State {
 	return s
 }
 
+// level returns the level the player is on.
 func (s *State) level() *dungeon.Level { return s.D.Levels[s.Depth] }
 
+// Done reports whether the run is over (won, died or quit).
 func (s *State) Done() bool { return s.Outcome != Running }
 
 // Visible reports whether p is within the field-of-view radius (walls do not block).
@@ -71,6 +109,9 @@ func (s *State) Visible(p dungeon.Point) bool {
 	return dx*dx+dy*dy <= fovRadius*fovRadius
 }
 
+// updateFOV marks every tile in view as seen and wakes every living monster in view.
+// It scans only the bounding square of the radius and clips it to the map.
+// Monsters never go back to sleep (SPEC 7.4).
 func (s *State) updateFOV() {
 	l := s.level()
 	for y := max(0, s.P.Pos.Y-fovRadius); y <= min(l.H-1, s.P.Pos.Y+fovRadius); y++ {
@@ -87,14 +128,22 @@ func (s *State) updateFOV() {
 	}
 }
 
+// say appends a formatted message to Msgs.
 func (s *State) say(format string, a ...any) { s.Msgs = append(s.Msgs, fmt.Sprintf(format, a...)) }
 
+// moves maps movement keys (vi keys and arrow names) to a tile delta.
 var moves = map[string]dungeon.Point{
 	"h": {X: -1}, "left": {X: -1}, "l": {X: 1}, "right": {X: 1},
 	"k": {Y: -1}, "up": {Y: -1}, "j": {Y: 1}, "down": {Y: 1},
 }
 
 // Apply handles one key press. Keys after the game is over do nothing.
+//
+// Turn order (SPEC 7.2): the player acts, then, if the action took a turn
+// and the run is still going, the monsters act. Then Turn increases and the
+// field of view is updated. An action that takes no turn (a wall bump, an
+// unknown key, opening the menu) skips all of that. Msgs is cleared on every
+// key, so it only ever holds the messages of the last key.
 func (s *State) Apply(key string) {
 	if s.Done() {
 		return
@@ -121,6 +170,8 @@ func (s *State) Apply(key string) {
 }
 
 // playKey runs a Play-mode key and reports whether it took a turn.
+// Moves and "." take a turn. "i" and ">" never return true here:
+// descend does its own turn accounting (see descend).
 func (s *State) playKey(key string) bool {
 	if d, ok := moves[key]; ok {
 		return s.move(d)
@@ -136,6 +187,9 @@ func (s *State) playKey(key string) bool {
 	return false
 }
 
+// inventoryKey runs an Inventory-mode key and reports whether it took a turn.
+// Only using an item takes a turn. Closing the menu, or pressing a letter
+// with no item behind it, does not (SPEC 7.1).
 func (s *State) inventoryKey(key string) bool {
 	switch {
 	case key == "esc" || key == "i":
@@ -148,6 +202,8 @@ func (s *State) inventoryKey(key string) bool {
 	return false
 }
 
+// use consumes the pack item at index i. A potion heals up to 10 HP without
+// exceeding MaxHP. A scroll adds 1 ATK. Order of the other items is kept (SPEC 7.5).
 func (s *State) use(i int) {
 	it := s.P.Inv[i]
 	s.P.Inv = slices.Delete(s.P.Inv, i, i+1)
@@ -162,6 +218,12 @@ func (s *State) use(i int) {
 }
 
 // descend takes the stairs; it costs a turn but monsters do not act.
+//
+// It increments Turn itself and returns nothing, so playKey reports no turn
+// and Apply skips the monster phase. This is on purpose (SPEC 7.6): the
+// player arrives on a new level at its Start and must not be hit by
+// monsters that have had no chance to be seen. There is no way back up.
+// Without stairs under the player, or on the last level, it only sets a message.
 func (s *State) descend() {
 	if s.level().At(s.P.Pos) != dungeon.Stairs || s.Depth+1 >= len(s.D.Levels) {
 		s.say("There are no stairs here.")
@@ -174,6 +236,9 @@ func (s *State) descend() {
 	s.updateFOV()
 }
 
+// pickUp moves the item at t, if any, from the level into the pack.
+// A full pack leaves the item on the floor and says so. The player has
+// already stepped onto t by then, and that still takes a turn (SPEC 7.5).
 func (s *State) pickUp(t dungeon.Point) {
 	l := s.level()
 	for i, it := range l.Items {
@@ -196,6 +261,8 @@ func (s *State) pickUp(t dungeon.Point) {
 	}
 }
 
+// monsterAt returns the living monster at p, or nil.
+// Dead monsters stay in the Monsters slice with HP <= 0, so they are skipped here.
 func (s *State) monsterAt(p dungeon.Point) *dungeon.Monster {
 	l := s.level()
 	for i := range l.Monsters {
@@ -206,6 +273,9 @@ func (s *State) monsterAt(p dungeon.Point) *dungeon.Monster {
 	return nil
 }
 
+// move tries to step by d and reports whether a turn passed.
+// A living monster on the target tile is attacked instead of entered.
+// A non-walkable tile does nothing and costs no turn (SPEC 7.2).
 func (s *State) move(d dungeon.Point) bool {
 	t := dungeon.Point{X: s.P.Pos.X + d.X, Y: s.P.Pos.Y + d.Y}
 	if m := s.monsterAt(t); m != nil {
@@ -221,8 +291,14 @@ func (s *State) move(d dungeon.Point) bool {
 }
 
 // roll is the damage of an attack with strength atk: atk-1..atk+1, at least 1.
+// The player and the monsters share it and draw from the one combat RNG,
+// so the order of calls matters for reproducibility (SPEC 7.3).
 func (s *State) roll(atk int) int { return max(1, atk+s.rng.IntN(3)-1) }
 
+// attack makes the player hit m. A kill gives XP equal to the monster's MaxHP.
+// Slaying the boss ends the run as Won. The slain monster is not removed from
+// the slice: its HP stays <= 0. That keeps monster indices stable and the
+// monster phase deterministic (SPEC 7.3).
 func (s *State) attack(m *dungeon.Monster) {
 	dmg := s.roll(s.P.ATK)
 	m.HP -= dmg
@@ -239,6 +315,9 @@ func (s *State) attack(m *dungeon.Monster) {
 	}
 }
 
+// gainXP adds n XP and levels up while XP >= 20*Level. It is a loop because
+// one big kill can pass several thresholds. Each level gives +5 MaxHP,
+// up to +5 HP (capped at MaxHP) and +1 ATK.
 func (s *State) gainXP(n int) {
 	p := &s.P
 	p.XP += n
@@ -252,6 +331,7 @@ func (s *State) gainXP(n int) {
 	}
 }
 
+// sign returns -1, 0 or 1 for the sign of n.
 func sign(n int) int {
 	switch {
 	case n > 0:
@@ -262,8 +342,16 @@ func sign(n int) int {
 	return 0
 }
 
+// abs returns the absolute value of n.
 func abs(n int) int { return max(n, -n) }
 
+// monsterPhase lets each awake, living monster act once, in slice order (SPEC 7.3).
+// A monster next to the player (Manhattan distance 1) attacks. If that kills
+// the player the phase ends at once. Otherwise the monster takes one step
+// toward the player along the longer axis first, then the shorter one.
+// A step is valid if the tile is walkable and holds neither the player nor
+// another living monster. Monsters do not path around obstacles; they stay put.
+// Diagonal neighbours are not adjacent, so they step instead of attacking.
 func (s *State) monsterPhase() {
 	l := s.level()
 	for i := range l.Monsters {

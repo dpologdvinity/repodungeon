@@ -12,9 +12,13 @@ import (
 
 // Repo is a git repository in a temp dir with fixed dates and identity.
 type Repo struct {
+	// Dir is the absolute path of the work tree. It is removed with the test.
 	Dir string
-	t   *testing.T
-	n   int
+	// t is the test that owns the repo; helpers fail it on any error.
+	// n is the number of commits made so far. It picks the next fixture date,
+	// so every commit gets a new month and history order is stable.
+	t *testing.T
+	n int
 }
 
 // Date returns 2024-01-15T12:00:00Z plus n months.
@@ -23,6 +27,8 @@ func Date(n int) time.Time {
 }
 
 // New creates an empty repository on branch main.
+// The branch is named explicitly so tests do not depend on the user's
+// init.defaultBranch setting.
 func New(t *testing.T) *Repo {
 	t.Helper()
 	r := &Repo{Dir: t.TempDir(), t: t}
@@ -30,6 +36,11 @@ func New(t *testing.T) *Repo {
 	return r
 }
 
+// run runs git with args in Dir and returns its stdout. name and email set
+// the commit author. The committer is always the fixture user. Dates come
+// from Date(r.n). User and system git config are switched off so the
+// machine's settings (signing, hooks, templates) cannot change the result.
+// Any git failure fails the test at once.
 func (r *Repo) run(name, email string, args ...string) string {
 	r.t.Helper()
 	cmd := exec.Command("git", args...)

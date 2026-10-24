@@ -11,6 +11,8 @@ import (
 	"github.com/dpologdvinity/repodungeon/internal/testrepo"
 )
 
+// env returns a fake Env: fixed version and date, and a RunTUI that presses q at once
+// so the run ends with a quit card. tty sets IsTTY.
 func env(tty bool) Env {
 	return Env{Version: "1.2.3", IsTTY: tty,
 		Now: func() time.Time { return time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC) },
@@ -20,12 +22,14 @@ func env(tty bool) Env {
 		}}
 }
 
+// run calls Run with e and returns stdout, stderr and the exit code.
 func run(e Env, args ...string) (string, string, int) {
 	var o, er bytes.Buffer
 	c := Run(args, &o, &er, e)
 	return o.String(), er.String(), c
 }
 
+// goodRepo makes a small valid git repo with two text files and one commit.
 func goodRepo(t *testing.T) *testrepo.Repo {
 	r := testrepo.New(t)
 	r.Write("main.go", "package main\n// TODO: win\n")
@@ -34,6 +38,7 @@ func goodRepo(t *testing.T) *testrepo.Repo {
 	return r
 }
 
+// TestRunPrintsCard proves the happy path: exit 0, empty stderr, and the card on stdout.
 func TestRunPrintsCard(t *testing.T) {
 	r := goodRepo(t)
 	out, errOut, code := run(env(true), "-C", r.Dir)
@@ -43,6 +48,9 @@ func TestRunPrintsCard(t *testing.T) {
 	}
 }
 
+// TestRunErrors proves each failure gives exit code 2 and the exact stderr message
+// (SPEC 3): not a repo, no commits, no text files, no terminal, extra argument,
+// and that a bad flag prints the usage.
 func TestRunErrors(t *testing.T) {
 	notRepo := t.TempDir()
 	bin := testrepo.New(t)
@@ -69,6 +77,8 @@ func TestRunErrors(t *testing.T) {
 	}
 }
 
+// TestHelpVersion proves that -h prints the usage and --version prints the version,
+// both with exit code 0.
 func TestHelpVersion(t *testing.T) {
 	if o, _, c := run(env(true), "-h"); c != 0 || o != usage {
 		t.Fatal("help")

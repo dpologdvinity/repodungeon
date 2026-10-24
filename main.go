@@ -1,3 +1,7 @@
+// Command repodungeon turns a git repository into a small dungeon game.
+//
+// This file only wires the real terminal, clock and version into the cli
+// package, then exits with the exit code that cli.Run returns.
 package main
 
 import (
@@ -11,14 +15,24 @@ import (
 	"github.com/dpologdvinity/repodungeon/internal/cli"
 )
 
+// version is the release version shown to the user. The default "dev" is
+// replaced at link time by the release build. If it is still "dev", main
+// falls back to the module version stored in the binary (go install).
 var version = "dev"
 
+// charDev reports whether f is a character device, such as a terminal.
+// It returns false if f cannot be inspected. Pipes and files are not
+// character devices, so this is how main detects a non-interactive run.
 func charDev(f *os.File) bool {
 	fi, err := f.Stat()
 	return err == nil && fi.Mode()&os.ModeCharDevice != 0
 }
 
+// main resolves the version, builds the cli environment and runs the
+// command. The TUI is only allowed when both stdin and stdout are terminals.
 func main() {
+	// Release builds set version at link time. For go install, read it from
+	// the build info. "(devel)" means a local build, so keep "dev".
 	if version == "dev" {
 		if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
 			version = strings.TrimPrefix(bi.Main.Version, "v")

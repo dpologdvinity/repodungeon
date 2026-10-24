@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+// TestCommitUsesFixedDatesAndAuthor proves that Commit returns a full
+// 40-character hash, that each commit gets the next monthly fixture date,
+// that the author is the one given and the committer is always Fixture,
+// and that Date(12) rolls over into the next year.
 func TestCommitUsesFixedDatesAndAuthor(t *testing.T) {
 	r := New(t)
 	r.Write("a/b.txt", "hi\n")
