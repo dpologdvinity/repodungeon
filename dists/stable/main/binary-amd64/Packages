@@ -1,0 +1,16 @@
+Package: repodungeon
+Version: 0.4.0
+Architecture: amd64
+Maintainer: Kaitlyn Bassford <dpologdvinity@users.noreply.github.com>
+Installed-Size: 3836
+Depends: git
+Filename: pool/main/r/repodungeon/repodungeon_0.4.0_amd64.deb
+Size: 1565600
+MD5sum: 23cd654e341b84b7e32f8917b2a3749d
+SHA1: b13db347a71e74a288feb8e8dd7acfe9e0a41224
+SHA256: 1ab622c25647ce781d16cf68e4b11bf908141ba13e317e92a8f3d3969e37a2c2
+Section: games
+Priority: optional
+Homepage: https://github.com/dpologdvinity/repodungeon
+Description: A roguelike generated from your git repository.
+

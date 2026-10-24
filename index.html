@@ -1,0 +1,10 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>repodungeon apt repository</title>
+<h1>repodungeon apt repository</h1>
+<pre>
+curl -fsSL https://dpologdvinity.github.io/repodungeon/repodungeon.gpg | sudo tee /usr/share/keyrings/repodungeon.gpg &gt;/dev/null
+echo "deb [signed-by=/usr/share/keyrings/repodungeon.gpg] https://dpologdvinity.github.io/repodungeon stable main" | sudo tee /etc/apt/sources.list.d/repodungeon.list
+sudo apt update &amp;&amp; sudo apt install repodungeon
+</pre>
+<p><a href="https://github.com/dpologdvinity/repodungeon">Project on GitHub</a></p>
