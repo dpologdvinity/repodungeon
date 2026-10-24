@@ -18,6 +18,8 @@ go install github.com/dpologdvinity/repodungeon@latest
 Or download a binary for linux, macOS or Windows (amd64, arm64) from the
 [GitHub releases](https://github.com/dpologdvinity/repodungeon/releases).
 
+Requirements: `git` in your `PATH`. Building from source needs Go 1.26 or newer.
+
 ## Play
 
 ```sh
@@ -53,6 +55,17 @@ repodungeon          # or: repodungeon -C path/to/repo
 - Slay monsters to gain XP and levels. Reach the boss and kill it to win. Die
   and the run is over; there are no saves.
 
+Flags:
+
+| Flag | Meaning |
+|---|---|
+| `-C dir` | Repository directory (default `.`). |
+| `--version` | Print the version and exit. |
+| `-h`, `--help` | Print usage and exit. |
+
+repodungeon needs an interactive terminal. If something goes wrong it prints
+`repodungeon: <message>` to stderr and exits with code 2.
+
 ## The card
 
 When the run ends, repodungeon prints a card to share:
@@ -68,6 +81,19 @@ When the run ends, repodungeon prints a card to share:
 | 2026-10-23                               |
 +------------------------------------------+
 ```
+
+## Development
+
+```sh
+go build ./...
+test -z "$(gofmt -l .)" && go vet ./... && go test ./...
+```
+
+Generated maps are pinned by golden files. After an intended generation change,
+refresh them with `go test ./internal/dungeon/ -update` and review the diff.
+
+Read [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organised and
+[docs/SPEC.md](docs/SPEC.md) for the exact rules.
 
 ## License
 
