@@ -102,7 +102,11 @@ func Run(args []string, stdout, stderr io.Writer, env Env) int {
 	if err != nil {
 		return fail("%v", err)
 	}
-	if _, err := io.WriteString(stdout, final.(tui.Model).S.Card(env.Now())); err != nil {
+	m, ok := final.(tui.Model)
+	if !ok || m.S == nil {
+		return fail("unexpected TUI model")
+	}
+	if _, err := io.WriteString(stdout, m.S.Card(env.Now())); err != nil {
 		return fail("%v", err)
 	}
 	return 0

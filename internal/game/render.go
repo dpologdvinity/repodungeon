@@ -50,7 +50,7 @@ func (s *State) Render() string {
 	} else {
 		rows = append(rows, s.mapRows()...)
 	}
-	rows = append(rows, s.status())
+	rows = append(rows, cut(s.status(), screenW))
 	if s.Done() {
 		rows = append(rows, overLine)
 	} else {
@@ -148,8 +148,11 @@ func (s *State) Card(now time.Time) string {
 	var b strings.Builder
 	b.WriteString(border)
 	for _, l := range lines {
-		// Pad or cut each line to exactly 40 columns inside the border.
-		fmt.Fprintf(&b, "| %-40s |\n", cut(l, 40))
+		// Pad or cut each line to exactly 40 runes inside the border.
+		c := cut(l, 40)
+		r := []rune(c)
+		pad := 40 - len(r)
+		fmt.Fprintf(&b, "| %s%s |\n", c, strings.Repeat(" ", pad))
 	}
 	b.WriteString(border)
 	return b.String()

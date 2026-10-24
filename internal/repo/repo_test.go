@@ -138,4 +138,7 @@ func TestScanKeepsSanitizedPathsUnique(t *testing.T) {
 	if len(got.Files) != 2 || got.Files[0].Path != "a?.go" || got.Files[1].Path != "a?.go~2" {
 		t.Fatalf("%+v", got.Files)
 	}
+	if !slices.IsSortedFunc(got.Files, func(a, b File) int { return strings.Compare(a.Path, b.Path) }) {
+		t.Fatalf("expected Files to be sorted, got %+v", got.Files)
+	}
 }

@@ -190,6 +190,7 @@ func Scan(dir string) (*Repo, error) {
 	// Paths come from untrusted repos and reach the terminal: neutralize
 	// control characters, and keep paths unique when that makes two collide.
 	taken := map[string]bool{}
+	mutated := false
 	for i := range r.Files {
 		base := strings.Map(func(c rune) rune {
 			if unicode.IsPrint(c) {
@@ -202,7 +203,13 @@ func Scan(dir string) (*Repo, error) {
 			p = fmt.Sprintf("%s~%d", base, n)
 		}
 		taken[p] = true
-		r.Files[i].Path = p
+		if p != r.Files[i].Path {
+			r.Files[i].Path = p
+			mutated = true
+		}
+	}
+	if mutated {
+		sort.Slice(r.Files, func(i, j int) bool { return r.Files[i].Path < r.Files[j].Path })
 	}
 	return r, nil
 }

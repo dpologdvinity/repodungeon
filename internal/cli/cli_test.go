@@ -87,3 +87,17 @@ func TestHelpVersion(t *testing.T) {
 		t.Fatal("version")
 	}
 }
+
+// TestRunUnexpectedTUIModel proves that an unexpected model returned by RunTUI
+// returns exit code 2 and an error message rather than panicking.
+func TestRunUnexpectedTUIModel(t *testing.T) {
+	r := goodRepo(t)
+	e := env(true)
+	e.RunTUI = func(m tea.Model) (tea.Model, error) {
+		return nil, nil
+	}
+	_, errOut, code := run(e, "-C", r.Dir)
+	if code != 2 || !strings.Contains(errOut, "repodungeon: unexpected TUI model") {
+		t.Fatalf("expected code 2 and unexpected TUI model message, got code %d %q", code, errOut)
+	}
+}

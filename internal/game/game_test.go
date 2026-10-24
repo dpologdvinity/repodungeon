@@ -273,6 +273,27 @@ func TestCard(t *testing.T) {
 			t.Fatalf("line width %d: %q", len(line), line)
 		}
 	}
+	unicodeBoss := New(dungeon.FromArt([]string{"|@..|"}))
+	unicodeBoss.D.Repo = "日本語リポジトリ"
+	unicodeBoss.D.BossName = "龍, Dragon of Code"
+	for _, line := range strings.Split(strings.TrimSuffix(unicodeBoss.Card(now), "\n"), "\n") {
+		if n := len([]rune(line)); n != 44 {
+			t.Fatalf("unicode card line rune width %d != 44: %q", n, line)
+		}
+	}
+}
+
+// TestStatusRowCappedAt80Runes proves that a very long room path does not cause
+// the status row to exceed 80 runes in Render().
+func TestStatusRowCappedAt80Runes(t *testing.T) {
+	d := dungeon.FromArt([]string{"|@..|"})
+	d.Levels[0].Rooms = []dungeon.Room{{Name: strings.Repeat("sub/dir/", 20), X: 0, Y: 0, W: 4, H: 1}}
+	s := New(d)
+	for i, line := range strings.Split(s.Render(), "\n") {
+		if n := len([]rune(line)); n > 80 {
+			t.Fatalf("row %d is %d runes: %q", i, n, line)
+		}
+	}
 }
 
 // TestInventoryRowsFitScreen proves that a very long item source path is cut so no

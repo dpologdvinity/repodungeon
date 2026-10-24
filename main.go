@@ -11,6 +11,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/term"
 
 	"github.com/dpologdvinity/repodungeon/internal/cli"
 )
@@ -20,12 +21,11 @@ import (
 // falls back to the module version stored in the binary (go install).
 var version = "dev"
 
-// charDev reports whether f is a character device, such as a terminal.
-// It returns false if f cannot be inspected. Pipes and files are not
-// character devices, so this is how main detects a non-interactive run.
-func charDev(f *os.File) bool {
-	fi, err := f.Stat()
-	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+// isTTY reports whether f is an interactive terminal. It returns false if
+// f is nil, a regular file, a pipe, or a special character device like
+// /dev/null that cannot host an interactive session.
+func isTTY(f *os.File) bool {
+	return f != nil && term.IsTerminal(f.Fd())
 }
 
 // main resolves the version, builds the cli environment and runs the
@@ -40,7 +40,7 @@ func main() {
 	}
 	env := cli.Env{
 		Version: version,
-		IsTTY:   charDev(os.Stdin) && charDev(os.Stdout),
+		IsTTY:   isTTY(os.Stdin) && isTTY(os.Stdout),
 		RunTUI:  func(m tea.Model) (tea.Model, error) { return tea.NewProgram(m).Run() },
 		Now:     time.Now,
 	}
