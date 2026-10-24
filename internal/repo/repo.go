@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -136,14 +137,22 @@ func Scan(dir string) (*Repo, error) {
 			}
 		}
 	}
-	// Paths come from untrusted repos and reach the terminal: neutralize control characters.
+	// Paths come from untrusted repos and reach the terminal: neutralize
+	// control characters, and keep paths unique when that makes two collide.
+	taken := map[string]bool{}
 	for i := range r.Files {
-		r.Files[i].Path = strings.Map(func(c rune) rune {
+		base := strings.Map(func(c rune) rune {
 			if unicode.IsPrint(c) {
 				return c
 			}
 			return '?'
 		}, r.Files[i].Path)
+		p := base
+		for n := 2; taken[p]; n++ {
+			p = fmt.Sprintf("%s~%d", base, n)
+		}
+		taken[p] = true
+		r.Files[i].Path = p
 	}
 	return r, nil
 }
@@ -217,8 +226,13 @@ func readBlobs(dir string, r *Repo, hashes []string, readIdx []int) error {
 		if size > 0 && body[size-1] != '\n' {
 			f.Lines++
 		}
-		f.Todos = len(todoRe.FindAllIndex(body, -1))
-		f.Fixmes = len(fixmeRe.FindAllIndex(body, -1))
+		// The substring check skips the slower regexp for most files.
+		if bytes.Contains(body, []byte("TODO")) {
+			f.Todos = len(todoRe.FindAllIndex(body, -1))
+		}
+		if bytes.Contains(body, []byte("FIXME")) {
+			f.Fixmes = len(fixmeRe.FindAllIndex(body, -1))
+		}
 	}
 	if err := cmd.Wait(); err != nil {
 		return &GitError{Args: []string{"cat-file", "--batch"}, Stderr: stderr.String() + err.Error()}

@@ -110,3 +110,17 @@ func TestScanSkipsBlobsMissingFromPartialClone(t *testing.T) {
 		t.Fatalf("%+v", got.Files)
 	}
 }
+
+func TestScanKeepsSanitizedPathsUnique(t *testing.T) {
+	r := testrepo.New(t)
+	r.Write("a\x01.go", "x\n")
+	r.Write("a\x02.go", "y\n")
+	r.Commit("Ada", "ada@example.com", "init")
+	got, err := Scan(r.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Files) != 2 || got.Files[0].Path != "a?.go" || got.Files[1].Path != "a?.go~2" {
+		t.Fatalf("%+v", got.Files)
+	}
+}
