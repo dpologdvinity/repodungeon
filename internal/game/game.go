@@ -164,6 +164,81 @@ func (s *State) move(d dungeon.Point) bool {
 	return true
 }
 
-func (s *State) attack(m *dungeon.Monster) {}
+// roll is the damage of an attack with strength atk: atk-1..atk+1, at least 1.
+func (s *State) roll(atk int) int { return max(1, atk+s.rng.IntN(3)-1) }
 
-func (s *State) monsterPhase() {}
+func (s *State) attack(m *dungeon.Monster) {
+	dmg := s.roll(s.P.ATK)
+	m.HP -= dmg
+	s.say("You hit %s for %d.", m.Name, dmg)
+	if m.HP > 0 {
+		return
+	}
+	s.say("You slay %s!", m.Name)
+	s.Kills++
+	s.gainXP(m.MaxHP)
+	if m.Boss {
+		s.say("%s is defeated! You win!", m.Name)
+		s.Outcome = Won
+	}
+}
+
+func (s *State) gainXP(n int) {
+	p := &s.P
+	p.XP += n
+	for p.XP >= 20*p.Level {
+		p.XP -= 20 * p.Level
+		p.Level++
+		p.MaxHP += 5
+		p.HP = min(p.MaxHP, p.HP+5)
+		p.ATK++
+		s.say("You feel stronger! Level %d.", p.Level)
+	}
+}
+
+func sign(n int) int {
+	switch {
+	case n > 0:
+		return 1
+	case n < 0:
+		return -1
+	}
+	return 0
+}
+
+func abs(n int) int { return max(n, -n) }
+
+func (s *State) monsterPhase() {
+	l := s.level()
+	for i := range l.Monsters {
+		m := &l.Monsters[i]
+		if m.HP <= 0 || !m.Awake {
+			continue
+		}
+		dx, dy := s.P.Pos.X-m.Pos.X, s.P.Pos.Y-m.Pos.Y
+		if abs(dx)+abs(dy) == 1 {
+			dmg := s.roll(m.ATK)
+			s.P.HP -= dmg
+			s.say("%s hits you for %d.", m.Name, dmg)
+			if s.P.HP <= 0 {
+				s.P.HP = 0
+				s.Outcome = Died
+				s.KilledBy = m.Name
+				s.say("You die...")
+				return
+			}
+			continue
+		}
+		tries := [2]dungeon.Point{{X: sign(dx)}, {Y: sign(dy)}}
+		if abs(dx) < abs(dy) {
+			tries[0], tries[1] = tries[1], tries[0]
+		}
+		for _, d := range tries {
+			t := dungeon.Point{X: m.Pos.X + d.X, Y: m.Pos.Y + d.Y}
+			if d != (dungeon.Point{}) && dungeon.Walkable(l.At(t)) && t != s.P.Pos && s.monsterAt(t) == nil {
+				m.Pos = t
+				break
+			}
+		}
+	}
+}
