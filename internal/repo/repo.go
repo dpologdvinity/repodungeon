@@ -239,17 +239,17 @@ func readBlobs(dir string, r *Repo, hashes []string, readIdx []int) error {
 	go func() {
 		w := bufio.NewWriter(in)
 		for _, h := range hashes {
-			w.WriteString(h + "\n")
+			_, _ = w.WriteString(h + "\n") // a write error means git died; the reader reports it
 		}
-		w.Flush()
-		in.Close()
+		_ = w.Flush()
+		_ = in.Close()
 	}()
 	br := bufio.NewReader(out)
 	// fail stops git and reports the problem. Git's own stderr is the best
 	// message; the Go error is the fallback.
 	fail := func(e error) error {
-		cmd.Process.Kill()
-		cmd.Wait()
+		_ = cmd.Process.Kill() // already failing; the original error is what matters
+		_ = cmd.Wait()
 		msg := stderr.String()
 		if msg == "" {
 			msg = e.Error()

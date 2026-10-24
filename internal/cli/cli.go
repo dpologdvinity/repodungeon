@@ -58,7 +58,7 @@ type Env struct {
 func Run(args []string, stdout, stderr io.Writer, env Env) int {
 	// fail prints a one-line error to stderr and returns exit code 2.
 	fail := func(format string, a ...any) int {
-		fmt.Fprintf(stderr, "repodungeon: "+format+"\n", a...)
+		_, _ = fmt.Fprintf(stderr, "repodungeon: "+format+"\n", a...)
 		return 2
 	}
 	fs := flag.NewFlagSet("repodungeon", flag.ContinueOnError)
@@ -70,14 +70,14 @@ func Run(args []string, stdout, stderr io.Writer, env Env) int {
 	// -h is not an error: usage goes to stdout and the code is 0.
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			io.WriteString(stdout, usage)
+			_, _ = io.WriteString(stdout, usage) // best effort: nothing to do if stdout is closed
 			return 0
 		}
-		io.WriteString(stderr, usage)
+		_, _ = io.WriteString(stderr, usage) // best effort, as above
 		return 2
 	}
 	if *version {
-		fmt.Fprintf(stdout, "repodungeon %s\n", env.Version)
+		_, _ = fmt.Fprintf(stdout, "repodungeon %s\n", env.Version)
 		return 0
 	}
 	if fs.NArg() > 0 {
@@ -102,6 +102,8 @@ func Run(args []string, stdout, stderr io.Writer, env Env) int {
 	if err != nil {
 		return fail("%v", err)
 	}
-	io.WriteString(stdout, final.(tui.Model).S.Card(env.Now()))
+	if _, err := io.WriteString(stdout, final.(tui.Model).S.Card(env.Now())); err != nil {
+		return fail("%v", err)
+	}
 	return 0
 }
