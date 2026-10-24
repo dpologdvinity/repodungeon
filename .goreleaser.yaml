@@ -26,3 +26,18 @@ homebrew_casks:
     homepage: "https://github.com/dpologdvinity/repodungeon"
     description: "A roguelike generated from your git repository"
     license: "MIT"
+
+# .deb and .rpm packages. The release workflow publishes the .deb files in a
+# signed apt repository (see scripts/build-apt-repo.sh).
+nfpms:
+  - id: packages
+    package_name: repodungeon
+    vendor: Kaitlyn Bassford
+    maintainer: Kaitlyn Bassford <dpologdvinity@users.noreply.github.com>
+    homepage: https://github.com/dpologdvinity/repodungeon
+    description: A roguelike generated from your git repository.
+    license: MIT
+    formats: [deb, rpm]
+    dependencies: [git]
+    section: games
+    file_name_template: "{{ .PackageName }}_{{ .Version }}_{{ .Arch }}"
