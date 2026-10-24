@@ -21,14 +21,22 @@ committed files appear (no ignored or untracked files).
 brew install dpologdvinity/tap/repodungeon
 ```
 
+On Debian, Ubuntu and other apt systems:
+
+```sh
+curl -fsSL https://dpologdvinity.github.io/repodungeon/repodungeon.gpg | sudo tee /usr/share/keyrings/repodungeon.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/repodungeon.gpg] https://dpologdvinity.github.io/repodungeon stable main" | sudo tee /etc/apt/sources.list.d/repodungeon.list
+sudo apt update && sudo apt install repodungeon
+```
+
 Or with Go:
 
 ```sh
 go install github.com/dpologdvinity/repodungeon@latest
 ```
 
-Or download a binary for linux, macOS or Windows (amd64, arm64) from the
-[GitHub releases](https://github.com/dpologdvinity/repodungeon/releases).
+Or download a binary, `.deb` or `.rpm` for linux, macOS or Windows (amd64, arm64)
+from the [GitHub releases](https://github.com/dpologdvinity/repodungeon/releases).
 
 Binaries downloaded directly are not code-signed, so macOS and Windows may warn
 about an unidentified developer. Homebrew and `go install` avoid this.

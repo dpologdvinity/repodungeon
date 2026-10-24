@@ -202,7 +202,12 @@ caches modules and builds.
 `.github/workflows/release.yml` runs on tags named `v*`. It re-runs format, vet
 and tests, then GoReleaser publishes binaries for linux, darwin and windows on
 amd64 and arm64 and pushes a Homebrew cask to `dpologdvinity/homebrew-tap`
-(secret `HOMEBREW_TAP_TOKEN`). `.github/dependabot.yml` proposes weekly updates for Go
+(secret `HOMEBREW_TAP_TOKEN`). The `apt` job in the same workflow turns the release's `.deb` files into a
+signed apt repository (`scripts/build-apt-repo.sh`) on the `gh-pages` branch,
+served by GitHub Pages at `https://dpologdvinity.github.io/repodungeon`. It
+signs with the `APT_GPG_PRIVATE_KEY` secret. The `packages` job in `ci.yml`
+builds the same packages and repository with a throwaway key on every push.
+`.github/dependabot.yml` proposes weekly updates for Go
 modules and actions.
 
 The version string is set at build time with `-X main.version`. For
