@@ -14,3 +14,15 @@ archives:
         formats: [zip]
 checksum:
   name_template: checksums.txt
+# Publishes a cask to the dpologdvinity/homebrew-tap repo on every release.
+# Needs the HOMEBREW_TAP_TOKEN secret (see release.yml).
+homebrew_casks:
+  - repository:
+      owner: dpologdvinity
+      name: homebrew-tap
+      branch: master
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/dpologdvinity/repodungeon"
+    description: "A roguelike generated from your git repository"
+    license: "MIT"
