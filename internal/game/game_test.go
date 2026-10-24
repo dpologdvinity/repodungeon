@@ -134,3 +134,81 @@ func TestDeathIgnoresLaterKeys(t *testing.T) {
 		t.Fatal("game over line")
 	}
 }
+
+func TestItemsAndInventory(t *testing.T) {
+	d := dungeon.FromArt([]string{"|@....|"})
+	d.Levels[0].Items = []dungeon.Item{
+		{Kind: dungeon.Potion, Source: "README.md", Pos: dungeon.Point{X: 2, Y: 0}},
+		{Kind: dungeon.Scroll, Source: "main.go", Pos: dungeon.Point{X: 3, Y: 0}},
+	}
+	s := New(d)
+	keys(s, "l")
+	if len(s.P.Inv) != 1 || s.LootTodo != 1 || !slices.Equal(s.Msgs, []string{"You pick up a TODO potion."}) {
+		t.Fatalf("%v", s.Msgs)
+	}
+	keys(s, "l")
+	s.P.HP = 25
+	keys(s, "i")
+	lines := strings.Split(s.Render(), "\n")
+	if s.Mode != Inventory || s.Turn != 2 || lines[1] != "Inventory (a-j to use, esc to close)" ||
+		lines[2] != "a) TODO potion (from README.md)" || lines[3] != "b) FIXME scroll (from main.go)" {
+		t.Fatalf("inventory screen:\n%s", s.Render())
+	}
+	keys(s, "a")
+	if s.P.HP != 30 || len(s.P.Inv) != 1 || s.Mode != Play || s.Turn != 3 ||
+		!slices.Equal(s.Msgs, []string{"You drink a TODO potion. +5 HP."}) {
+		t.Fatalf("%+v %v", s.P, s.Msgs)
+	}
+	keys(s, "i", "b") // no item at index 1: nothing, stay in inventory
+	if s.Mode != Inventory || s.Turn != 3 {
+		t.Fatal("empty slot must do nothing")
+	}
+	keys(s, "a")
+	if s.P.ATK != 4 || len(s.P.Inv) != 0 || s.Turn != 4 || !slices.Equal(s.Msgs, []string{"You read a FIXME scroll. ATK +1."}) {
+		t.Fatalf("%v", s.Msgs)
+	}
+	keys(s, "i")
+	if strings.Split(s.Render(), "\n")[2] != "(empty)" {
+		t.Fatal("empty inventory line")
+	}
+	keys(s, "esc")
+	if s.Mode != Play {
+		t.Fatal("esc must close inventory")
+	}
+}
+
+func TestPackFull(t *testing.T) {
+	d := dungeon.FromArt([]string{"|@..|"})
+	d.Levels[0].Items = []dungeon.Item{{Kind: dungeon.Potion, Source: "x", Pos: dungeon.Point{X: 2, Y: 0}}}
+	s := New(d)
+	for i := 0; i < 10; i++ {
+		s.P.Inv = append(s.P.Inv, dungeon.Item{Kind: dungeon.Scroll})
+	}
+	keys(s, "l")
+	if len(s.P.Inv) != 10 || len(s.level().Items) != 1 || !slices.Equal(s.Msgs, []string{"Your pack is full."}) {
+		t.Fatalf("%v", s.Msgs)
+	}
+}
+
+func TestStairs(t *testing.T) {
+	s := New(dungeon.FromArt([]string{"-----", "|@.>|", "-----"}, []string{"-----", "|.@.|", "-----"}))
+	keys(s, ">")
+	if s.Turn != 0 || !slices.Equal(s.Msgs, []string{"There are no stairs here."}) {
+		t.Fatalf("%v", s.Msgs)
+	}
+	keys(s, "l", "l", ">")
+	if s.Depth != 1 || s.P.Pos != (dungeon.Point{X: 2, Y: 1}) || s.Turn != 3 ||
+		!slices.Equal(s.Msgs, []string{"You descend to depth 2."}) || !strings.Contains(s.Render(), "Depth 2/2") {
+		t.Fatalf("depth %d pos %v msgs %v", s.Depth, s.P.Pos, s.Msgs)
+	}
+}
+
+func TestQuit(t *testing.T) {
+	for _, k := range []string{"q", "ctrl+c"} {
+		s := New(dungeon.FromArt([]string{"|@..|"}))
+		keys(s, k, "l")
+		if s.Outcome != Quit || !s.Done() || s.P.Pos.X != 1 || s.Turn != 0 {
+			t.Fatalf("%s: %v", k, s.Outcome)
+		}
+	}
+}

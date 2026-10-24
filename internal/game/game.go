@@ -3,6 +3,7 @@ package game
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/dpologdvinity/repodungeon/internal/dungeon"
 )
@@ -129,16 +130,70 @@ func (s *State) playKey(key string) bool {
 		return true
 	case "i":
 		s.Mode = Inventory
+	case ">":
+		s.descend()
 	}
 	return false
 }
 
 func (s *State) inventoryKey(key string) bool {
-	switch key {
-	case "esc", "i":
+	switch {
+	case key == "esc" || key == "i":
 		s.Mode = Play
+	case len(key) == 1 && key[0] >= 'a' && key[0] <= 'j' && int(key[0]-'a') < len(s.P.Inv):
+		s.use(int(key[0] - 'a'))
+		s.Mode = Play
+		return true
 	}
 	return false
+}
+
+func (s *State) use(i int) {
+	it := s.P.Inv[i]
+	s.P.Inv = slices.Delete(s.P.Inv, i, i+1)
+	if it.Kind == dungeon.Potion {
+		heal := min(10, s.P.MaxHP-s.P.HP)
+		s.P.HP += heal
+		s.say("You drink a TODO potion. +%d HP.", heal)
+		return
+	}
+	s.P.ATK++
+	s.say("You read a FIXME scroll. ATK +1.")
+}
+
+// descend takes the stairs; it costs a turn but monsters do not act.
+func (s *State) descend() {
+	if s.level().At(s.P.Pos) != dungeon.Stairs || s.Depth+1 >= len(s.D.Levels) {
+		s.say("There are no stairs here.")
+		return
+	}
+	s.Depth++
+	s.P.Pos = s.level().Start
+	s.say("You descend to depth %d.", s.Depth+1)
+	s.Turn++
+	s.updateFOV()
+}
+
+func (s *State) pickUp(t dungeon.Point) {
+	l := s.level()
+	for i, it := range l.Items {
+		if it.Pos != t {
+			continue
+		}
+		if len(s.P.Inv) >= packSize {
+			s.say("Your pack is full.")
+			return
+		}
+		l.Items = slices.Delete(l.Items, i, i+1)
+		s.P.Inv = append(s.P.Inv, it)
+		s.say("You pick up a %s.", it.Kind.Name())
+		if it.Kind == dungeon.Potion {
+			s.LootTodo++
+		} else {
+			s.LootFixme++
+		}
+		return
+	}
 }
 
 func (s *State) monsterAt(p dungeon.Point) *dungeon.Monster {
@@ -161,6 +216,7 @@ func (s *State) move(d dungeon.Point) bool {
 		return false
 	}
 	s.P.Pos = t
+	s.pickUp(t)
 	return true
 }
 
