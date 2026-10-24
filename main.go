@@ -2,6 +2,8 @@ package main
 
 import (
 	"os"
+	"runtime/debug"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,6 +19,11 @@ func charDev(f *os.File) bool {
 }
 
 func main() {
+	if version == "dev" {
+		if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+			version = strings.TrimPrefix(bi.Main.Version, "v")
+		}
+	}
 	env := cli.Env{
 		Version: version,
 		IsTTY:   charDev(os.Stdin) && charDev(os.Stdout),

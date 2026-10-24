@@ -75,3 +75,16 @@ func TestScanErrors(t *testing.T) {
 		t.Errorf("empty: %v", err)
 	}
 }
+
+func TestScanSanitizesControlCharsInPaths(t *testing.T) {
+	r := testrepo.New(t)
+	r.Write("e\x1b[31mRED\nX.go", "hi\n")
+	r.Commit("Ada", "ada@example.com", "init")
+	got, err := Scan(r.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Files) != 1 || got.Files[0].Path != "e?[31mRED?X.go" || got.Files[0].Churn != 1 {
+		t.Fatalf("%+v", got.Files)
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // MaxBlob is the largest blob that is read; bigger ones are Skipped.
@@ -134,6 +135,15 @@ func Scan(dir string) (*Repo, error) {
 				r.Files[i].Churn++
 			}
 		}
+	}
+	// Paths come from untrusted repos and reach the terminal: neutralize control characters.
+	for i := range r.Files {
+		r.Files[i].Path = strings.Map(func(c rune) rune {
+			if unicode.IsPrint(c) {
+				return c
+			}
+			return '?'
+		}, r.Files[i].Path)
 	}
 	return r, nil
 }
