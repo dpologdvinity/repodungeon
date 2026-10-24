@@ -57,7 +57,7 @@ func TestRender(t *testing.T) {
 		"------\n|@.!.m|\n------\n" + // corners (6,0) and (6,2) are outside radius 5
 		strings.Repeat("\n", 18) +
 		"Depth 1/1  HP 30/30  ATK 3  LV 1  XP 0/20  T 0  /\n" +
-		"hjkl/arrows move  . wait  > descend  i inventory  q quit\n"
+		"hjkl/arrows move  . wait  > descend  i inventory  ? help  q quit\n"
 	if got := s.Render(); got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}
@@ -318,4 +318,39 @@ func TestRenderRememberedTiles(t *testing.T) {
 		keys(s, "l")
 	}
 	_ = s.Render()
+}
+
+// TestHelpScreen proves the how-to-play screen: it fills the fixed 80x24
+// layout, names the goal, any key closes it without costing a turn, and "?"
+// opens it again during play.
+func TestHelpScreen(t *testing.T) {
+	s := New(dungeon.FromArt([]string{"|@..|"}))
+	s.OpenHelp()
+	lines := strings.Split(strings.TrimSuffix(s.Render(), "\n"), "\n")
+	if s.Mode != Help || len(lines) != 24 {
+		t.Fatalf("mode %v, %d rows", s.Mode, len(lines))
+	}
+	for i, l := range lines {
+		if n := len([]rune(l)); n > 80 {
+			t.Fatalf("row %d has %d runes", i, n)
+		}
+	}
+	screen := s.Render()
+	for _, want := range []string{"HOW TO PLAY", "server.go, Devourer of Weekends", "Press any key to continue."} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("help screen lacks %q:\n%s", want, screen)
+		}
+	}
+	keys(s, "l") // closes help; must not also move
+	if s.Mode != Play || s.P.Pos.X != 1 || s.Turn != 0 {
+		t.Fatalf("mode %v pos %v turn %d", s.Mode, s.P.Pos, s.Turn)
+	}
+	keys(s, "?")
+	if s.Mode != Help || s.Turn != 0 {
+		t.Fatal("? must open help without a turn")
+	}
+	keys(s, "q")
+	if s.Outcome != Quit {
+		t.Fatal("q must still quit from the help screen")
+	}
 }

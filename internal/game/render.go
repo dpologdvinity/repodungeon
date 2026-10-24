@@ -14,7 +14,7 @@ const (
 	// mapRows is the number of map rows; the screen is 1 message row + map + status + help = 24.
 	mapRows = dungeon.MapH
 	// helpLine is the last row while the run is going.
-	helpLine = "hjkl/arrows move  . wait  > descend  i inventory  q quit"
+	helpLine = "hjkl/arrows move  . wait  > descend  i inventory  ? help  q quit"
 	// overLine replaces helpLine once the run is over.
 	overLine = "Game over. Press any key."
 	// invHeader is the first row of the inventory screen under the message row.
@@ -35,7 +35,13 @@ func (s *State) Render() string {
 	// rows are built without trailing spaces; the final loop also adds the newline.
 	var rows []string
 	rows = append(rows, cut(strings.Join(s.Msgs, " "), screenW))
-	if s.Mode == Inventory {
+	switch s.Mode {
+	case Help:
+		rows = append(rows, s.helpRows()...)
+		for len(rows) < 1+mapRows {
+			rows = append(rows, "")
+		}
+	case Inventory:
 		rows = append(rows, invHeader)
 		for i, it := range s.P.Inv {
 			rows = append(rows, cut(fmt.Sprintf("%c) %s (from %s)", 'a'+i, it.Kind.Name(), it.Source), screenW))
@@ -47,13 +53,16 @@ func (s *State) Render() string {
 		for len(rows) < 1+mapRows {
 			rows = append(rows, "")
 		}
-	} else {
+	default:
 		rows = append(rows, s.mapRows()...)
 	}
 	rows = append(rows, cut(s.status(), screenW))
-	if s.Done() {
+	switch {
+	case s.Done():
 		rows = append(rows, overLine)
-	} else {
+	case s.Mode == Help:
+		rows = append(rows, "Press any key to continue.")
+	default:
 		rows = append(rows, helpLine)
 	}
 	var b strings.Builder
@@ -156,4 +165,33 @@ func (s *State) Card(now time.Time) string {
 	}
 	b.WriteString(border)
 	return b.String()
+}
+
+// helpRows returns the how-to-play text that replaces the map rows. It names
+// this run's boss and depth so the goal is concrete. At most mapRows rows,
+// each at most screenW runes.
+func (s *State) helpRows() []string {
+	return []string{
+		"HOW TO PLAY",
+		"",
+		fmt.Sprintf("Your repo is a dungeon. Slay %s", s.D.BossName),
+		fmt.Sprintf("on depth %d (the deepest level) to win. If your HP reaches 0, the run is over.", len(s.D.Levels)),
+		"Folders are rooms and deeper folders are deeper levels. Files are monsters.",
+		"",
+		"KEYS",
+		"  h j k l or arrow keys   move. Walk into a monster to attack it.",
+		"  .                       wait one turn",
+		"  >                       go down (stand on the > tile first)",
+		"  i                       open your pack; press a-j to use an item",
+		"  ?                       show this screen again        q   quit",
+		"",
+		"THE MAP",
+		"  @ you    & the boss    other letters are monsters (the file's first letter)",
+		"  ! potion (from a TODO comment): heals up to 10 HP",
+		"  ? scroll (from a FIXME comment): +1 attack",
+		"  . floor   # corridor   + door   - | walls   > stairs",
+		"",
+		"Monsters sleep until you come close. Long files have more HP; files changed",
+		"often hit harder. Slaying them gives XP. There is no saving or going back up.",
+	}
 }

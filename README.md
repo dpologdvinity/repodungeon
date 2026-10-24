@@ -33,12 +33,16 @@ cd your-repo
 repodungeon          # or: repodungeon -C path/to/repo
 ```
 
+The game opens on a how-to-play screen. Press any key to start; press `?` at
+any time to read it again.
+
 | Key | Action |
 |---|---|
 | `h` `j` `k` `l` or arrows | move / attack |
 | `.` | wait a turn |
 | `>` | descend (on the stairs) |
 | `i` | inventory (`a`-`j` uses an item, `esc` closes) |
+| `?` | show the how-to-play screen again |
 | `q` | quit |
 
 ## How your repo becomes a dungeon

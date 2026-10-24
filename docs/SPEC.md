@@ -62,7 +62,7 @@ flags:
   -C dir      repository directory (default ".")
   --version   print version
 
-keys: hjkl or arrows move, . wait, > descend, i inventory, q quit
+keys: hjkl or arrows move, . wait, > descend, i inventory, ? help, q quit
 ```
 
 Flow: parse flags; scan the repo (§4); generate the dungeon (§5); if stdin or stdout is not a terminal, fail; run the TUI (§8); print the card (§7.8) to stdout; exit 0.
@@ -221,7 +221,7 @@ Builds a dungeon from ASCII rows: ` -|.#+>` map to the tiles of §5.3 (`>` also 
 
 ```go
 type Mode int
-const (Play Mode = iota; Inventory)
+const (Play Mode = iota; Inventory; Help)
 type Outcome int
 const (Running Outcome = iota; Won, Died, Quit)
 type Player struct {
@@ -264,7 +264,9 @@ func (s *State) Card(now time.Time) string
 | Play | `.` | wait | yes |
 | Play | `>` | descend if on Stairs (§7.6), else message `There are no stairs here.` | descend: special (§7.6); else no |
 | Play | `i` | Mode = Inventory | no |
-| Play, Inventory | `q`, `ctrl+c` | Outcome = Quit | no |
+| Play | `?` | Mode = Help | no |
+| Help | any key except `q`, `ctrl+c` | Mode = Play (the key does nothing else) | no |
+| Play, Inventory, Help | `q`, `ctrl+c` | Outcome = Quit | no |
 | Inventory | `a`..`j` | if an item exists at that index (`a` = 0): use it (§7.5) and set Mode = Play; otherwise nothing | yes, if an item was used |
 | Inventory | `esc`, `i` | Mode = Play | no |
 | any | other | nothing | no |
@@ -301,7 +303,8 @@ Each row has trailing spaces trimmed and is followed by `\n`.
 - Row 0: `strings.Join(Msgs, " ")`, cut to 80 runes.
 - Rows 1–21: map rows y = 0..20 of the current level. For a tile: if visible, draw the player `@`, else a living monster's glyph, else an item (`!` potion, `?` scroll), else the tile glyph. If not visible but seen: the tile glyph only. Otherwise a space. Tiles outside the level size are spaces.
 - Row 22: `Depth <Depth+1>/<L>  HP <HP>/<MaxHP>  ATK <ATK>  LV <Level>  XP <XP>/<20*Level>  T <Turn>  <place>`, where place is the name of the first room whose outer rectangle contains the player, or `corridor`.
-- Row 23: `hjkl/arrows move  . wait  > descend  i inventory  q quit`; when `Done()`: `Game over. Press any key.`
+- Row 23: `hjkl/arrows move  . wait  > descend  i inventory  ? help  q quit`; when `Done()`: `Game over. Press any key.`; in Help mode: `Press any key to continue.`
+- Help mode replaces rows 1–21 with the how-to-play text (`HOW TO PLAY`, `KEYS`, `THE MAP` sections; it names the boss and the number of levels). `cli.Run` calls `OpenHelp()` before the first frame, so the game starts on this screen.
 - Inventory mode replaces rows 1–21: row 1 `Inventory (a-j to use, esc to close)`; then one row per item `<letter>) <TODO potion|FIXME scroll> (from <Source>)`; or `(empty)` if the pack is empty.
 
 ### 7.8 Card (`Card(now)`)

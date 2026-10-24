@@ -131,7 +131,7 @@ the only way to change it. One call is one key press:
 
 1. Do nothing if the game is over.
 2. Clear the message list.
-3. Run the key in the current mode (play or inventory).
+3. Run the key in the current mode (play, inventory or the how-to-play help screen; any key closes help).
 4. If the action took a turn: run the monster phase (unless the game just
    ended), increment the turn counter, update the field of view.
 

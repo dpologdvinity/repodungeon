@@ -21,6 +21,8 @@ const (
 	Play Mode = iota
 	// Inventory is the item menu. Keys a-j use items, esc or i closes it.
 	Inventory
+	// Help is the how-to-play screen. Any key except q closes it.
+	Help
 )
 
 // Outcome says whether the run is still going and, if not, how it ended.
@@ -97,6 +99,11 @@ func New(d *dungeon.Dungeon) *State {
 	return s
 }
 
+// OpenHelp shows the how-to-play screen. The command line calls it before
+// the first frame so a new player reads the rules before the map. "?" opens it
+// again during play. It costs no turn.
+func (s *State) OpenHelp() { s.Mode = Help }
+
 // level returns the level the player is on.
 func (s *State) level() *dungeon.Level { return s.D.Levels[s.Depth] }
 
@@ -154,9 +161,12 @@ func (s *State) Apply(key string) {
 		return
 	}
 	var turn bool
-	if s.Mode == Inventory {
+	switch s.Mode {
+	case Help:
+		s.Mode = Play // any key closes the help screen and does nothing else
+	case Inventory:
 		turn = s.inventoryKey(key)
-	} else {
+	default:
 		turn = s.playKey(key)
 	}
 	if !turn {
@@ -181,6 +191,8 @@ func (s *State) playKey(key string) bool {
 		return true
 	case "i":
 		s.Mode = Inventory
+	case "?":
+		s.Mode = Help
 	case ">":
 		s.descend()
 	}

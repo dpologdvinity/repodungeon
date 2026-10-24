@@ -132,3 +132,19 @@ func TestRunStdoutError(t *testing.T) {
 		t.Fatalf("expected code 2 and write error, got %d %q", code, er.String())
 	}
 }
+
+// TestRunOpensOnHelpScreen proves the game starts on the how-to-play screen,
+// so a new player sees the rules before the map.
+func TestRunOpensOnHelpScreen(t *testing.T) {
+	r := goodRepo(t)
+	e := env(true)
+	var first string
+	e.RunTUI = func(m tea.Model) (tea.Model, error) {
+		first = m.View().Content
+		m, _ = m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
+		return m, nil
+	}
+	if _, _, code := run(e, "-C", r.Dir); code != 0 || !strings.Contains(first, "HOW TO PLAY") {
+		t.Fatalf("code %d first screen:\n%s", code, first)
+	}
+}

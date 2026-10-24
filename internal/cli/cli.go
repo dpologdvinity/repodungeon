@@ -30,7 +30,7 @@ flags:
   -C dir      repository directory (default ".")
   --version   print version
 
-keys: hjkl or arrows move, . wait, > descend, i inventory, q quit
+keys: hjkl or arrows move, . wait, > descend, i inventory, ? help, q quit
 `
 
 // Env holds everything Run needs from the outside world.
@@ -98,7 +98,9 @@ func Run(args []string, stdout, stderr io.Writer, env Env) int {
 	if !env.IsTTY {
 		return fail("needs an interactive terminal")
 	}
-	final, err := env.RunTUI(tui.Model{S: game.New(d)})
+	st := game.New(d)
+	st.OpenHelp() // new players read the rules before they see the map
+	final, err := env.RunTUI(tui.Model{S: st})
 	if err != nil {
 		return fail("%v", err)
 	}
