@@ -173,7 +173,6 @@ func (s *State) Card(now time.Time) string {
 func (s *State) helpRows() []string {
 	return []string{
 		"HOW TO PLAY",
-		"",
 		fmt.Sprintf("Your repo is a dungeon. Slay %s", s.D.BossName),
 		fmt.Sprintf("on depth %d (the deepest level) to win. If your HP reaches 0, the run is over.", len(s.D.Levels)),
 		"Folders are rooms and deeper folders are deeper levels. Files are monsters.",
@@ -186,12 +185,13 @@ func (s *State) helpRows() []string {
 		"  ?                       show this screen again        q   quit",
 		"",
 		"THE MAP",
-		"  @ you    & the boss    other letters are monsters (the file's first letter)",
+		"  @ you",
+		"  & the boss",
+		"  a-z a monster: a file. More lines = more HP, more commits = harder hits",
 		"  ! potion (from a TODO comment): heals up to 10 HP",
 		"  ? scroll (from a FIXME comment): +1 attack",
 		"  . floor   # corridor   + door   - | walls   > stairs",
 		"",
-		"Monsters sleep until you come close. Long files have more HP; files changed",
-		"often hit harder. Slaying them gives XP. There is no saving or going back up.",
+		"Monsters sleep until you come close. Slaying them gives XP. No saving or undo.",
 	}
 }
