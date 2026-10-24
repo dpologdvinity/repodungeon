@@ -59,7 +59,7 @@ var (
 
 func command(dir string, args ...string) *exec.Cmd {
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_NO_LAZY_FETCH=1") // partial clones: never fetch blobs one by one
 	return cmd
 }
 
@@ -190,6 +190,10 @@ func readBlobs(dir string, r *Repo, hashes []string, readIdx []int) error {
 			return fail(err)
 		}
 		hf := strings.Fields(header)
+		if len(hf) == 2 && hf[1] == "missing" { // blob not present locally (partial clone)
+			r.Files[i].Skipped = true
+			continue
+		}
 		if len(hf) != 3 || hf[1] != "blob" {
 			return fail(errors.New("unexpected cat-file header: " + strings.TrimSpace(header)))
 		}

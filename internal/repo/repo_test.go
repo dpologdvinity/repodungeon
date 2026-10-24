@@ -3,6 +3,7 @@ package repo
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -85,6 +86,27 @@ func TestScanSanitizesControlCharsInPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(got.Files) != 1 || got.Files[0].Path != "e?[31mRED?X.go" || got.Files[0].Churn != 1 {
+		t.Fatalf("%+v", got.Files)
+	}
+}
+
+func TestScanSkipsBlobsMissingFromPartialClone(t *testing.T) {
+	src := testrepo.New(t)
+	src.Git("config", "uploadpack.allowFilter", "true")
+	src.Git("config", "uploadpack.allowAnySHA1InWant", "true")
+	src.Write("a.go", "package a\n")
+	src.Commit("Ada", "ada@example.com", "init")
+	clone := filepath.Join(t.TempDir(), "clone")
+	cmd := exec.Command("git", "clone", "-q", "--no-checkout", "--filter=blob:none", "file://"+src.Dir, clone)
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("partial clone unsupported: %v %s", err, out)
+	}
+	got, err := Scan(clone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Files) != 1 || !got.Files[0].Skipped {
 		t.Fatalf("%+v", got.Files)
 	}
 }
