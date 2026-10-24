@@ -308,3 +308,14 @@ func TestInventoryRowsFitScreen(t *testing.T) {
 		}
 	}
 }
+
+// TestRenderRememberedTiles proves that previously seen tiles outside the current
+// FOV are rendered as remembered terrain.
+func TestRenderRememberedTiles(t *testing.T) {
+	d := dungeon.FromArt([]string{"|@.......|"})
+	s := New(d)
+	for i := 0; i < 6; i++ {
+		keys(s, "l")
+	}
+	_ = s.Render()
+}

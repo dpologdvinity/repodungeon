@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -99,5 +100,35 @@ func TestRunUnexpectedTUIModel(t *testing.T) {
 	_, errOut, code := run(e, "-C", r.Dir)
 	if code != 2 || !strings.Contains(errOut, "repodungeon: unexpected TUI model") {
 		t.Fatalf("expected code 2 and unexpected TUI model message, got code %d %q", code, errOut)
+	}
+}
+
+// errWriter fails on Write.
+type errWriter struct{}
+
+func (errWriter) Write(p []byte) (int, error) {
+	return 0, errors.New("write error")
+}
+
+// TestRunTUIError proves that a failure returned by RunTUI returns exit code 2.
+func TestRunTUIError(t *testing.T) {
+	r := goodRepo(t)
+	e := env(true)
+	e.RunTUI = func(m tea.Model) (tea.Model, error) {
+		return nil, errors.New("tui failure")
+	}
+	_, errOut, code := run(e, "-C", r.Dir)
+	if code != 2 || !strings.Contains(errOut, "repodungeon: tui failure") {
+		t.Fatalf("expected code 2 and tui failure, got %d %q", code, errOut)
+	}
+}
+
+// TestRunStdoutError proves that a failure writing the card returns exit code 2.
+func TestRunStdoutError(t *testing.T) {
+	r := goodRepo(t)
+	var er bytes.Buffer
+	code := Run([]string{"-C", r.Dir}, errWriter{}, &er, env(true))
+	if code != 2 || !strings.Contains(er.String(), "repodungeon: write error") {
+		t.Fatalf("expected code 2 and write error, got %d %q", code, er.String())
 	}
 }

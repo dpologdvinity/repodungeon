@@ -40,4 +40,16 @@ func TestModel(t *testing.T) {
 	if _, ok := cmd().(tea.QuitMsg); !ok {
 		t.Fatal("q must return tea.Quit")
 	}
+
+	// Non-key message is ignored
+	if _, cmd := m.Update("unknown"); cmd != nil {
+		t.Fatal("non-key message must return nil cmd")
+	}
+
+	// Pressing any key after game is over returns tea.Quit
+	gameOver := Model{S: game.New(dungeon.FromArt([]string{"|@..|"}))}
+	gameOver.S.Outcome = game.Won
+	if _, cmd := press(gameOver, 'x', "x"); cmd == nil {
+		t.Fatal("key on finished game must quit")
+	}
 }

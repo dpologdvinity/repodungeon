@@ -65,3 +65,10 @@ func TestPlanMisc(t *testing.T) {
 		t.Fatalf("%v misc=%d", names(p[1]), len(p[1][len(p[1])-1].Files))
 	}
 }
+
+// TestPlanEmpty proves that planning empty files returns nil.
+func TestPlanEmpty(t *testing.T) {
+	if p := Plan(nil); p != nil {
+		t.Fatalf("expected nil plan, got %v", p)
+	}
+}

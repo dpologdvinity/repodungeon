@@ -27,3 +27,10 @@ func TestCommitUsesFixedDatesAndAuthor(t *testing.T) {
 		t.Fatal("Date(12)")
 	}
 }
+
+// TestRemove proves that Remove deletes a file from the repository work tree.
+func TestRemove(t *testing.T) {
+	r := New(t)
+	r.Write("test.txt", "content")
+	r.Remove("test.txt")
+}

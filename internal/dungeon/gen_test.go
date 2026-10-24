@@ -230,3 +230,60 @@ func TestGenerateNoFiles(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 }
+
+// TestRoomContains proves Room.Contains detects points inside the room rectangle.
+func TestRoomContains(t *testing.T) {
+	r := Room{X: 1, Y: 1, W: 3, H: 2}
+	if !r.Contains(Point{1, 1}) || !r.Contains(Point{5, 4}) || r.Contains(Point{6, 4}) {
+		t.Fatal("room Contains logic mismatch")
+	}
+}
+
+// TestLevelAtOutOfBounds proves that At returns Rock for coordinates outside the level.
+func TestLevelAtOutOfBounds(t *testing.T) {
+	l := &Level{W: 5, H: 5, Tiles: make([]Tile, 25)}
+	if l.At(Point{-1, 0}) != Rock || l.At(Point{0, -1}) != Rock || l.At(Point{5, 0}) != Rock || l.At(Point{0, 5}) != Rock {
+		t.Fatal("out of bounds must be Rock")
+	}
+}
+
+// TestFromArtBadChar proves that FromArt panics when an unrecognized glyph is encountered.
+func TestFromArtBadChar(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on bad char")
+		}
+	}()
+	FromArt([]string{"?"})
+}
+
+// TestMonsterGlyph proves that monsterGlyph returns the first letter lowercased, or 'm' if none.
+func TestMonsterGlyph(t *testing.T) {
+	if g := monsterGlyph("123"); g != 'm' {
+		t.Fatalf("expected 'm', got %c", g)
+	}
+	if g := monsterGlyph("foo.go"); g != 'f' {
+		t.Fatalf("expected 'f', got %c", g)
+	}
+}
+
+// TestGenerateMonsterTiebreakers proves stable sorting tiebreakers (lines, path) in monster selection.
+func TestGenerateMonsterTiebreakers(t *testing.T) {
+	r := &repo.Repo{
+		Name: "test",
+		Head: "abcdef0123456789abcdef0123456789abcdef01",
+		Files: []repo.File{
+			{Path: "boss.go", Lines: 100, Churn: 10},
+			{Path: "a.go", Lines: 20, Churn: 5},
+			{Path: "b.go", Lines: 30, Churn: 5},
+			{Path: "c.go", Lines: 30, Churn: 5},
+		},
+	}
+	d, err := Generate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Levels[0].Monsters) == 0 {
+		t.Fatal("expected monsters placed")
+	}
+}

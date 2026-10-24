@@ -142,3 +142,40 @@ func TestScanKeepsSanitizedPathsUnique(t *testing.T) {
 		t.Fatalf("expected Files to be sorted, got %+v", got.Files)
 	}
 }
+
+// TestGitErrorString proves GitError.Error formats the first line of stderr.
+func TestGitErrorString(t *testing.T) {
+	ge := &GitError{Args: []string{"status", "-s"}, Stderr: "fatal: boom\nsecond line"}
+	if got := ge.Error(); got != "git status -s: fatal: boom" {
+		t.Fatalf("unexpected GitError text %q", got)
+	}
+}
+
+// TestScanGitMissing proves Scan returns ErrGitMissing when git is not on PATH.
+func TestScanGitMissing(t *testing.T) {
+	t.Setenv("PATH", "")
+	_, err := Scan(".")
+	if !errors.Is(err, ErrGitMissing) {
+		t.Fatalf("expected ErrGitMissing, got %v", err)
+	}
+}
+
+// TestReadBlobsEdgeCases proves empty hashes returns nil, and non-blob hashes fail.
+func TestReadBlobsEdgeCases(t *testing.T) {
+	r := testrepo.New(t)
+	r.Write("f.txt", "content\n")
+	r.Commit("Ada", "ada@example.com", "init")
+
+	// Empty hashes
+	if err := readBlobs(r.Dir, &Repo{}, nil, nil); err != nil {
+		t.Fatalf("expected nil for empty hashes, got %v", err)
+	}
+
+	// Non-blob hash: pass HEAD tree hash as blob request
+	treeHash := strings.TrimSpace(r.Git("rev-parse", "HEAD^{tree}"))
+	repoObj := &Repo{Files: []File{{Path: "f.txt"}}}
+	err := readBlobs(r.Dir, repoObj, []string{treeHash}, []int{0})
+	if err == nil {
+		t.Fatal("expected error passing tree hash to readBlobs")
+	}
+}
