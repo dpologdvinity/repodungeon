@@ -24,6 +24,9 @@ go install github.com/dpologdvinity/repodungeon@latest
 Or download a binary for linux, macOS or Windows (amd64, arm64) from the
 [GitHub releases](https://github.com/dpologdvinity/repodungeon/releases).
 
+Binaries downloaded directly are not code-signed, so macOS and Windows may warn
+about an unidentified developer. Homebrew and `go install` avoid this.
+
 Requirements: `git` in your `PATH`. Building from source needs Go 1.26 or newer.
 
 ## Play
