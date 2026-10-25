@@ -149,6 +149,11 @@ var helpLegend = []struct{ prefix, token string }{
 	{"  ! potion", "!"},
 	{"  ? scroll", "?"},
 	{"  a-z a monster", "a-z"},
+	{"  . floor", "."},
+	{"  # corridor", "#"},
+	{"  + door", "+"},
+	{"  - | walls", "- |"},
+	{"  > stairs", ">"},
 }
 
 // colorHelpRow colors headings and the glyph at the start of legend lines.
@@ -159,7 +164,7 @@ func colorHelpRow(row string) string {
 	}
 	for _, l := range helpLegend {
 		if strings.HasPrefix(row, l.prefix) {
-			sgr := sgrMonst
+			sgr := sgrMonst // "a-z" is the only multi-letter token that is not a symbol
 			if l.token != "a-z" {
 				sgr = glyphStyle([]rune(l.token)[0])
 			}

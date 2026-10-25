@@ -60,6 +60,8 @@ func (s *State) Render() string {
 	switch {
 	case s.Done():
 		rows = append(rows, overLine)
+	case s.Mode == Help && s.helpPage < helpPages-1:
+		rows = append(rows, fmt.Sprintf("Press any key for page %d of %d.", s.helpPage+2, helpPages))
 	case s.Mode == Help:
 		rows = append(rows, "Press any key to continue.")
 	default:
@@ -167,31 +169,46 @@ func (s *State) Card(now time.Time) string {
 	return b.String()
 }
 
-// helpRows returns the how-to-play text that replaces the map rows. It names
-// this run's boss and depth so the goal is concrete. At most mapRows rows,
-// each at most screenW runes.
+// helpPages is the number of pages of the help screen.
+const helpPages = 2
+
+// helpRows returns the rows of the current help page. They replace the map
+// rows (at most mapRows rows, each at most screenW runes). Page 1 gives the goal
+// and the keys and names this run's boss and depth; page 2 explains the map.
+// The legend lines start with the symbol as it appears on the map.
 func (s *State) helpRows() []string {
+	if s.helpPage == 0 {
+		return []string{
+			"HOW TO PLAY",
+			"",
+			fmt.Sprintf("Your repo is a dungeon. Slay %s", s.D.BossName),
+			fmt.Sprintf("on depth %d (the deepest level) to win. If your HP reaches 0, the run is over.", len(s.D.Levels)),
+			"Folders are rooms and deeper folders are deeper levels. Files are monsters.",
+			"",
+			"KEYS",
+			"  h j k l or arrows   move. Walk into a monster to attack it.",
+			"  .                   wait one turn",
+			"  >                   go down (stand on the > tile first)",
+			"  i                   open your pack; press a-j to use an item",
+			"  ?                   show this help again",
+			"  q                   quit",
+		}
+	}
 	return []string{
-		"HOW TO PLAY",
-		fmt.Sprintf("Your repo is a dungeon. Slay %s", s.D.BossName),
-		fmt.Sprintf("on depth %d (the deepest level) to win. If your HP reaches 0, the run is over.", len(s.D.Levels)),
-		"Folders are rooms and deeper folders are deeper levels. Files are monsters.",
-		"",
-		"KEYS",
-		"  h j k l or arrow keys   move. Walk into a monster to attack it.",
-		"  .                       wait one turn",
-		"  >                       go down (stand on the > tile first)",
-		"  i                       open your pack; press a-j to use an item",
-		"  ?                       show this screen again        q   quit",
-		"",
 		"THE MAP",
+		"",
 		"  @ you",
 		"  & the boss",
 		"  a-z a monster: a file. More lines = more HP, more commits = harder hits",
 		"  ! potion (from a TODO comment): heals up to 10 HP",
 		"  ? scroll (from a FIXME comment): +1 attack",
-		"  . floor   # corridor   + door   - | walls   > stairs",
+		"  . floor",
+		"  # corridor",
+		"  + door",
+		"  - | walls",
+		"  > stairs",
 		"",
-		"Monsters sleep until you come close. Slaying them gives XP. No saving or undo.",
+		"Monsters sleep until you come close. Slaying them gives XP and levels you up.",
+		"There is no saving and no going back up.",
 	}
 }

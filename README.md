@@ -50,8 +50,8 @@ cd your-repo
 repodungeon          # or: repodungeon -C path/to/repo
 ```
 
-The game opens on a how-to-play screen. Press any key to start; press `?` at
-any time to read it again.
+The game opens on a two-page how-to-play screen. Press any key to turn the page
+and again to start; press `?` at any time to read it again.
 
 The map is in color (walls gray, you green, monsters red, the boss bold red,
 potions magenta, scrolls cyan). Set `NO_COLOR=1` for plain text. The card printed

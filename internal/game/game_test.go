@@ -320,34 +320,48 @@ func TestRenderRememberedTiles(t *testing.T) {
 	_ = s.Render()
 }
 
-// TestHelpScreen proves the how-to-play screen: it fills the fixed 80x24
-// layout, names the goal, any key closes it without costing a turn, and "?"
-// opens it again during play.
+// TestHelpScreen proves the two-page how-to-play screen: every page fits the
+// fixed 80x24 layout, page 1 names the goal and keys, page 2 lists every map
+// symbol on its own line, a key turns the page and then closes help without
+// costing a turn, and "?" opens it again during play.
 func TestHelpScreen(t *testing.T) {
 	s := New(dungeon.FromArt([]string{"|@..|"}))
 	s.OpenHelp()
-	lines := strings.Split(strings.TrimSuffix(s.Render(), "\n"), "\n")
-	if s.Mode != Help || len(lines) != 24 {
-		t.Fatalf("mode %v, %d rows", s.Mode, len(lines))
+	page := func() string {
+		lines := strings.Split(strings.TrimSuffix(s.Render(), "\n"), "\n")
+		if s.Mode != Help || len(lines) != 24 {
+			t.Fatalf("mode %v, %d rows", s.Mode, len(lines))
+		}
+		for i, l := range lines {
+			if n := len([]rune(l)); n > 80 {
+				t.Fatalf("row %d has %d runes", i, n)
+			}
+		}
+		return s.Render()
 	}
-	for i, l := range lines {
-		if n := len([]rune(l)); n > 80 {
-			t.Fatalf("row %d has %d runes", i, n)
+	has := func(screen string, wants ...string) {
+		t.Helper()
+		for _, want := range wants {
+			if !strings.Contains(screen, want) {
+				t.Errorf("help screen lacks %q:\n%s", want, screen)
+			}
 		}
 	}
-	screen := s.Render()
-	for _, want := range []string{"HOW TO PLAY", "server.go, Devourer of Weekends", "Press any key to continue."} {
-		if !strings.Contains(screen, want) {
-			t.Errorf("help screen lacks %q:\n%s", want, screen)
-		}
+	has(page(), "HOW TO PLAY", "server.go, Devourer of Weekends", "KEYS", "Press any key for page 2 of 2.")
+	keys(s, "l") // turns the page; must not move
+	map2 := page()
+	has(map2, "THE MAP", "Press any key to continue.")
+	for _, legend := range []string{"  @ you\n", "  & the boss\n", "  ! potion", "  ? scroll", "  . floor\n",
+		"  # corridor\n", "  + door\n", "  - | walls\n", "  > stairs\n"} {
+		has(map2, legend)
 	}
-	keys(s, "l") // closes help; must not also move
+	keys(s, "l") // closes help; must not move either
 	if s.Mode != Play || s.P.Pos.X != 1 || s.Turn != 0 {
 		t.Fatalf("mode %v pos %v turn %d", s.Mode, s.P.Pos, s.Turn)
 	}
 	keys(s, "?")
-	if s.Mode != Help || s.Turn != 0 {
-		t.Fatal("? must open help without a turn")
+	if s.Mode != Help || s.Turn != 0 || !strings.Contains(s.Render(), "HOW TO PLAY") {
+		t.Fatal("? must open help on page 1 without a turn")
 	}
 	keys(s, "q")
 	if s.Outcome != Quit {

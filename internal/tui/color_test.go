@@ -35,6 +35,7 @@ func TestColorizeKeepsText(t *testing.T) {
 		func() {},
 		func() { s.Apply("i") },
 		func() { s.Apply("esc"); s.OpenHelp() },
+		func() { s.Apply("x") }, // help page 2
 		func() { s.Apply("x"); s.P.HP = 5 },
 		func() { s.Apply("q") },
 	} {

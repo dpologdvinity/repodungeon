@@ -81,6 +81,8 @@ type State struct {
 	LootTodo, LootFixme int // items picked up
 	// seen holds one flat W*H grid per level. A true tile was in view at some point and is drawn from memory.
 	seen [][]bool
+	// helpPage is the page of the help screen being shown (0 or 1). It only matters in Help mode.
+	helpPage int
 	// rng is the combat RNG. It is seeded from the dungeon seed, so a run is reproducible from the key list.
 	rng *dungeon.RNG // combat RNG
 }
@@ -102,7 +104,7 @@ func New(d *dungeon.Dungeon) *State {
 // OpenHelp shows the how-to-play screen. The command line calls it before
 // the first frame so a new player reads the rules before the map. "?" opens it
 // again during play. It costs no turn.
-func (s *State) OpenHelp() { s.Mode = Help }
+func (s *State) OpenHelp() { s.Mode, s.helpPage = Help, 0 }
 
 // level returns the level the player is on.
 func (s *State) level() *dungeon.Level { return s.D.Levels[s.Depth] }
@@ -163,7 +165,10 @@ func (s *State) Apply(key string) {
 	var turn bool
 	switch s.Mode {
 	case Help:
-		s.Mode = Play // any key closes the help screen and does nothing else
+		// Any key turns the page, and on the last page closes help. It does nothing else.
+		if s.helpPage++; s.helpPage >= helpPages {
+			s.Mode = Play
+		}
 	case Inventory:
 		turn = s.inventoryKey(key)
 	default:
@@ -192,7 +197,7 @@ func (s *State) playKey(key string) bool {
 	case "i":
 		s.Mode = Inventory
 	case "?":
-		s.Mode = Help
+		s.OpenHelp()
 	case ">":
 		s.descend()
 	}
