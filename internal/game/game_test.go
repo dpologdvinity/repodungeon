@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -1056,3 +1057,221 @@ func TestMonsterTelegraphSlainBeforeStrike(t *testing.T) {
 		t.Errorf("slain monster should not emit miss message")
 	}
 }
+
+func TestGitPowersAndFocusChecks(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"------|",
+		"|@.m..|",
+		"------|",
+	})
+	s := New(d)
+	s.P.GitEnergy = 100
+
+	// Review Focus #2: 'git revert' (key 2) with 0 damage taken
+	s.P.LastDamageTaken = 0
+	s.Apply("2")
+	if s.P.GitEnergy != 100 {
+		t.Errorf("git revert should not consume energy when no damage was taken")
+	}
+	if !slices.Contains(s.Msgs, "No damage to revert.") {
+		t.Errorf("expected 'No damage to revert.' message, got %v", s.Msgs)
+	}
+
+	// Review Focus #4: 'git blame' (key 3) with no adjacent monster
+	s.P.Pos = dungeon.Point{X: 1, Y: 1}
+	s.level().Monsters[0].Pos = dungeon.Point{X: 5, Y: 1}
+	s.Apply("3")
+	if s.P.GitEnergy != 100 {
+		t.Errorf("git blame should not consume energy when no enemy is adjacent")
+	}
+	if !slices.Contains(s.Msgs, "No adjacent enemy to blame.") {
+		t.Errorf("expected 'No adjacent enemy to blame.' message, got %v", s.Msgs)
+	}
+
+	// Successful git stash (key 1)
+	s.Apply("1")
+	if s.P.GitEnergy != 70 { // cost 30
+		t.Errorf("expected energy 70 after stash, got %d", s.P.GitEnergy)
+	}
+	if s.P.StashTurns != 2 {
+		t.Errorf("expected 2 turns of stash stealth")
+	}
+}
+
+func TestGitPowerRevertHeal(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"--------",
+		"|@.m...|",
+		"--------",
+	})
+	d.Levels[0].Monsters[0].Pos = dungeon.Point{X: 2, Y: 1}
+	s := New(d)
+	s.P.GitEnergy = 100
+
+	// Wait a turn so the adjacent monster hits the player
+	s.Apply(".")
+	damageTaken := s.P.LastDamageTaken
+	if damageTaken <= 0 {
+		t.Fatalf("expected monster to deal damage, got LastDamageTaken=%d", damageTaken)
+	}
+	hpAfterHit := s.P.HP
+	if hpAfterHit != 30-damageTaken {
+		t.Fatalf("expected HP %d, got %d", 30-damageTaken, hpAfterHit)
+	}
+
+	// Revert damage
+	s.Apply("2")
+	if s.P.GitEnergy != 75 { // 100 - 25 = 75
+		t.Errorf("expected GitEnergy 75, got %d", s.P.GitEnergy)
+	}
+	if s.P.HP != 30 {
+		t.Errorf("expected player HP healed back to 30, got %d", s.P.HP)
+	}
+	wantMsg := fmt.Sprintf("You revert the damage! +%d HP.", damageTaken)
+	if !slices.Contains(s.Msgs, wantMsg) {
+		t.Errorf("expected message %q, got %v", wantMsg, s.Msgs)
+	}
+}
+
+func TestGitPowerBlame(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"--------",
+		"|..m...|",
+		"|.m@m..|",
+		"|..m...|",
+		"--------",
+	})
+	// Player is at (3, 2). Place monsters at Up (3, 1), Left (2, 2), Right (4, 2), Down (3, 3)
+	d.Levels[0].Start = dungeon.Point{X: 3, Y: 2}
+	d.Levels[0].Monsters = []dungeon.Monster{
+		{Name: "up.go", Pos: dungeon.Point{X: 3, Y: 1}, HP: 10, MaxHP: 10, ATK: 6, Awake: true},
+		{Name: "left.go", Pos: dungeon.Point{X: 2, Y: 2}, HP: 5, MaxHP: 5, ATK: 4, Awake: true},
+		{Name: "right.go", Pos: dungeon.Point{X: 4, Y: 2}, HP: 20, MaxHP: 20, ATK: 8, Awake: true},
+		{Name: "down.go", Pos: dungeon.Point{X: 3, Y: 3}, HP: 8, MaxHP: 8, ATK: 6, Awake: true},
+	}
+	s := New(d)
+	s.P.GitEnergy = 100
+
+	// 1. Move left (or attack left monster) to establish facing direction Left
+	s.Apply("h") // hits left.go
+	if s.lastDir != (dungeon.Point{X: -1, Y: 0}) {
+		t.Errorf("expected lastDir {-1, 0}, got %v", s.lastDir)
+	}
+
+	// Now cast git blame (key 3)
+	// It should target left.go because facing direction is prioritized over higher HP right.go
+	s.Apply("3")
+	leftMon := &s.level().Monsters[1]
+	if leftMon.StunTurns != 1 { // Started at 2, decremented by 1 in monsterPhase
+		t.Errorf("expected left.go StunTurns 1 after turn, got %d", leftMon.StunTurns)
+	}
+	if leftMon.ATK != 2 { // 4 / 2 = 2
+		t.Errorf("expected left.go ATK halved to 2, got %d", leftMon.ATK)
+	}
+	if s.P.GitEnergy != 80 { // 100 - 20
+		t.Errorf("expected GitEnergy 80, got %d", s.P.GitEnergy)
+	}
+}
+
+func TestGitPowerStashStealth(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"--------",
+		"|@.m...|",
+		"--------",
+	})
+	d.Levels[0].Monsters[0].Pos = dungeon.Point{X: 3, Y: 1}
+	s := New(d)
+	s.P.GitEnergy = 100
+
+	// Cast stash
+	s.Apply("1")
+	if s.P.StashTurns != 2 {
+		t.Fatalf("expected StashTurns 2, got %d", s.P.StashTurns)
+	}
+
+	// Monster at (3, 1) should NOT move toward player at (1, 1) during stash
+	m := &s.level().Monsters[0]
+	if m.Pos != (dungeon.Point{X: 3, Y: 1}) {
+		t.Errorf("monster should not move while player is stashed, pos: %v", m.Pos)
+	}
+
+	// Move right to (2, 1), next to monster
+	s.Apply("l")
+	if s.P.StashTurns != 1 {
+		t.Errorf("expected StashTurns 1 after move, got %d", s.P.StashTurns)
+	}
+	// Adjacent monster should NOT attack while player is stashed
+	if s.P.HP != 30 {
+		t.Errorf("expected player unharmed during stash, got HP %d", s.P.HP)
+	}
+}
+
+func TestGitEnergyExplorationAndSlay(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"----------------------",
+		"|@...................|",
+		"----------------------",
+	})
+	d.Levels[0].Monsters = []dungeon.Monster{
+		{Name: "bug.go", Pos: dungeon.Point{X: 12, Y: 1}, HP: 1, MaxHP: 1, ATK: 1, Awake: true},
+	}
+	s := New(d)
+	// Player starts at 50 GitEnergy
+	if s.P.GitEnergy != 50 {
+		t.Errorf("expected starting GitEnergy 50, got %d", s.P.GitEnergy)
+	}
+
+	// Move right across the corridor, uncovering new floor tiles
+	energyBefore := s.P.GitEnergy
+	s.Apply("l")
+	s.Apply("l")
+	if s.P.GitEnergy <= energyBefore {
+		t.Errorf("expected GitEnergy to increase from uncovering floor tiles, before=%d, after=%d", energyBefore, s.P.GitEnergy)
+	}
+
+	// Slay monster
+	s.level().Monsters[0].Pos = dungeon.Point{X: s.P.Pos.X + 1, Y: s.P.Pos.Y}
+	s.level().Monsters[0].HP = 1
+	s.P.GitEnergy = 50
+	s.Apply("l") // slay bug.go with 1 HP
+	if s.P.GitEnergy != 65 { // 50 + 15
+		t.Errorf("expected GitEnergy 65 after slay, got %d", s.P.GitEnergy)
+	}
+}
+
+func TestGitPowersInsufficientEnergy(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"--------",
+		"|@.m...|",
+		"--------",
+	})
+	d.Levels[0].Monsters[0].Pos = dungeon.Point{X: 2, Y: 1}
+	s := New(d)
+	s.P.GitEnergy = 10
+	s.P.LastDamageTaken = 10
+
+	s.Apply("1") // requires 30
+	if s.P.GitEnergy != 10 {
+		t.Errorf("energy should not be consumed, got %d", s.P.GitEnergy)
+	}
+	if !slices.Contains(s.Msgs, "Not enough Git Energy.") {
+		t.Errorf("expected 'Not enough Git Energy.' msg, got %v", s.Msgs)
+	}
+
+	s.Apply("2") // requires 25
+	if s.P.GitEnergy != 10 {
+		t.Errorf("energy should not be consumed, got %d", s.P.GitEnergy)
+	}
+	if !slices.Contains(s.Msgs, "Not enough Git Energy.") {
+		t.Errorf("expected 'Not enough Git Energy.' msg, got %v", s.Msgs)
+	}
+
+	s.Apply("3") // requires 20
+	if s.P.GitEnergy != 10 {
+		t.Errorf("energy should not be consumed, got %d", s.P.GitEnergy)
+	}
+	if !slices.Contains(s.Msgs, "Not enough Git Energy.") {
+		t.Errorf("expected 'Not enough Git Energy.' msg, got %v", s.Msgs)
+	}
+}
+

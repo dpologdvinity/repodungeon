@@ -52,12 +52,16 @@ type Player struct {
 	Pos dungeon.Point
 	// HP is current health, MaxHP its cap. ATK is attack strength. Level and XP track progress (SPEC 7.3).
 	HP, MaxHP, ATK, Level, XP int
+	// GitEnergy is tactical ability energy (max 100, starts at 50).
+	GitEnergy int
 	// Inv is the pack, in pickup order. Using an item keeps the order of the rest.
 	Inv []dungeon.Item
 	// Weapon is the equipped weapon, or nil if unarmed.
 	Weapon *dungeon.Item
 	// StashTurns is the remaining duration of git stash stealth.
 	StashTurns int
+	// LastDamageTaken is damage suffered in the most recent monster phase.
+	LastDamageTaken int
 }
 
 // State is the whole game. Apply is the only way to change it from outside.
@@ -85,6 +89,8 @@ type State struct {
 	LootTodo, LootFixme int // items picked up
 	// restWaitCount counts consecutive safe resting turns waiting with ".".
 	restWaitCount int
+	// lastDir is the delta of the player's most recent movement or attack key.
+	lastDir dungeon.Point
 	// seen holds one flat W*H grid per level. A true tile was in view at some point and is drawn from memory.
 	seen [][]bool
 	// helpPage is the page of the help screen being shown (0 or 1). It only matters in Help mode.
@@ -93,16 +99,17 @@ type State struct {
 	rng *dungeon.RNG // combat RNG
 }
 
-// New starts a run on level 0 of d with the starting stats (30 HP, 3 ATK, level 1).
+// New starts a run on level 0 of d with the starting stats (30 HP, 3 ATK, level 1, 50 energy).
 // It computes the first field of view, so monsters in sight are awake from turn 0.
 // d must have at least one level.
 func New(d *dungeon.Dungeon) *State {
 	s := &State{D: d, rng: dungeon.NewRNG(d.Seed + 1)}
-	s.P = Player{Pos: d.Levels[0].Start, HP: 30, MaxHP: 30, ATK: 3, Level: 1}
+	s.P = Player{Pos: d.Levels[0].Start, HP: 30, MaxHP: 30, ATK: 3, Level: 1, GitEnergy: 50}
 	for _, l := range d.Levels {
 		s.seen = append(s.seen, make([]bool, l.W*l.H))
 	}
 	s.updateFOV()
+	s.P.GitEnergy = 50
 	s.Msgs = []string{fmt.Sprintf("Welcome to %s! Slay %s on depth %d.", d.Repo, d.BossName, len(d.Levels))}
 	return s
 }
@@ -126,13 +133,20 @@ func (s *State) Visible(p dungeon.Point) bool {
 
 // updateFOV marks every tile in view as seen and wakes every living monster in view.
 // It scans only the bounding square of the radius and clips it to the map.
+// Newly revealed floor tiles grant +1 GitEnergy (capped at 100).
 // Monsters never go back to sleep (SPEC 7.4).
 func (s *State) updateFOV() {
 	l := s.level()
 	for y := max(0, s.P.Pos.Y-fovRadius); y <= min(l.H-1, s.P.Pos.Y+fovRadius); y++ {
 		for x := max(0, s.P.Pos.X-fovRadius); x <= min(l.W-1, s.P.Pos.X+fovRadius); x++ {
 			if s.Visible(dungeon.Point{X: x, Y: y}) {
-				s.seen[s.Depth][y*l.W+x] = true
+				idx := y*l.W + x
+				if !s.seen[s.Depth][idx] {
+					s.seen[s.Depth][idx] = true
+					if l.Tiles[idx] == dungeon.Floor {
+						s.P.GitEnergy = min(100, s.P.GitEnergy+1)
+					}
+				}
 			}
 		}
 	}
@@ -215,19 +229,26 @@ func (s *State) Apply(key string) {
 	if s.Outcome == Running {
 		s.monsterPhase()
 	}
+	if s.P.StashTurns > 0 && key != "1" {
+		s.P.StashTurns--
+	}
 	s.Turn++
 	s.updateFOV()
 }
 
 // playKey runs a Play-mode key and reports whether it took a turn.
-// Moves and "." take a turn. "i" and ">" never return true here:
+// Moves, Git Powers, and "." take a turn. "i" and ">" never return true here:
 // descend does its own turn accounting (see descend).
 func (s *State) playKey(key string) bool {
 	if d, ok := moves[key]; ok {
 		s.restWaitCount = 0
+		s.lastDir = d
 		return s.move(d)
 	}
 	switch key {
+	case "1", "2", "3":
+		s.restWaitCount = 0
+		return s.castGitPower(key)
 	case ".":
 		s.safeRestTurn()
 		return true
@@ -308,6 +329,10 @@ func (s *State) descend() {
 	}
 	s.Depth++
 	s.P.Pos = s.level().Start
+	s.P.LastDamageTaken = 0
+	if s.P.StashTurns > 0 {
+		s.P.StashTurns--
+	}
 	s.say("You descend to depth %d.", s.Depth+1)
 	s.Turn++
 	s.updateFOV()
@@ -434,6 +459,7 @@ func (s *State) slay(m *dungeon.Monster) {
 	s.say("You slay %s!", m.Name)
 	s.Kills++
 	s.gainXP(m.MaxHP)
+	s.P.GitEnergy = min(100, s.P.GitEnergy+15)
 	if m.Boss {
 		s.say("%s is defeated! You win!", m.Name)
 		s.Outcome = Won
@@ -503,10 +529,25 @@ func abs(n int) int { return max(n, -n) }
 // another living monster. Monsters do not path around obstacles; they stay put.
 // Diagonal neighbours are not adjacent, so they step instead of attacking.
 func (s *State) monsterPhase() {
+	s.P.LastDamageTaken = 0
 	l := s.level()
 	for i := range l.Monsters {
 		m := &l.Monsters[i]
 		if m.HP <= 0 || !m.Awake {
+			continue
+		}
+		if m.StunTurns > 0 {
+			m.StunTurns--
+			if m.Telegraph {
+				m.Telegraph = false
+			}
+			continue
+		}
+		if s.P.StashTurns > 0 {
+			if m.Telegraph {
+				m.Telegraph = false
+				s.say("%s's heavy blow misses!", m.Name)
+			}
 			continue
 		}
 		dx, dy := s.P.Pos.X-m.Pos.X, s.P.Pos.Y-m.Pos.Y
@@ -515,6 +556,7 @@ func (s *State) monsterPhase() {
 			if abs(dx)+abs(dy) == 1 {
 				dmg := (s.roll(m.ATK) * 3) / 2
 				s.P.HP -= dmg
+				s.P.LastDamageTaken += dmg
 				s.say("%s hits you for %d.", m.Name, dmg)
 				if s.P.HP <= 0 {
 					s.P.HP = 0
@@ -536,6 +578,7 @@ func (s *State) monsterPhase() {
 			}
 			dmg := s.roll(m.ATK)
 			s.P.HP -= dmg
+			s.P.LastDamageTaken += dmg
 			s.say("%s hits you for %d.", m.Name, dmg)
 			if s.P.HP <= 0 {
 				s.P.HP = 0
@@ -558,4 +601,75 @@ func (s *State) monsterPhase() {
 			}
 		}
 	}
+}
+
+// blameTarget finds the target monster for git blame, prioritizing the player's
+// facing/last move direction, then the adjacent monster with the highest HP.
+func (s *State) blameTarget() *dungeon.Monster {
+	if s.lastDir != (dungeon.Point{}) {
+		facingPos := dungeon.Point{X: s.P.Pos.X + s.lastDir.X, Y: s.P.Pos.Y + s.lastDir.Y}
+		if m := s.monsterAt(facingPos); m != nil && m.HP > 0 {
+			return m
+		}
+	}
+	var best *dungeon.Monster
+	for _, d := range []dungeon.Point{{X: 0, Y: -1}, {X: 0, Y: 1}, {X: -1, Y: 0}, {X: 1, Y: 0}} {
+		adjPos := dungeon.Point{X: s.P.Pos.X + d.X, Y: s.P.Pos.Y + d.Y}
+		if m := s.monsterAt(adjPos); m != nil && m.HP > 0 {
+			if best == nil || m.HP > best.HP {
+				best = m
+			}
+		}
+	}
+	return best
+}
+
+// castGitPower executes a tactical Git Power mapped to hotkeys 1, 2, or 3.
+// Returns true if the power was successfully cast and consumed a turn.
+func (s *State) castGitPower(key string) bool {
+	switch key {
+	case "1": // git stash (Cost 30)
+		if s.P.GitEnergy < 30 {
+			s.say("Not enough Git Energy.")
+			return false
+		}
+		s.P.GitEnergy -= 30
+		s.P.StashTurns = 2
+		s.say("You git stash into the shadows.")
+		return true
+
+	case "2": // git revert (Cost 25)
+		if s.P.LastDamageTaken == 0 {
+			s.say("No damage to revert.")
+			return false
+		}
+		if s.P.GitEnergy < 25 {
+			s.say("Not enough Git Energy.")
+			return false
+		}
+		heal := min(s.P.LastDamageTaken, s.P.MaxHP-s.P.HP)
+		s.P.HP += heal
+		s.P.LastDamageTaken = 0
+		s.P.GitEnergy -= 25
+		s.say("You revert the damage! +%d HP.", heal)
+		return true
+
+	case "3": // git blame (Cost 20)
+		target := s.blameTarget()
+		if target == nil {
+			s.say("No adjacent enemy to blame.")
+			return false
+		}
+		if s.P.GitEnergy < 20 {
+			s.say("Not enough Git Energy.")
+			return false
+		}
+		s.P.GitEnergy -= 20
+		target.StunTurns = 2
+		target.ATK = max(1, target.ATK/2)
+		target.Telegraph = false
+		s.say("You blame %s! It is stunned.", target.Name)
+		return true
+	}
+	return false
 }

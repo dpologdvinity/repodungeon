@@ -99,6 +99,8 @@ type Monster struct {
 	Boss, Awake bool
 	// Telegraph is true when winding up a heavy blow.
 	Telegraph bool
+	// StunTurns is the remaining turns the monster is stunned.
+	StunTurns int
 }
 
 // ItemKind is the kind of a pickup.
@@ -373,6 +375,13 @@ func FromArt(levels ...[]string) *Dungeon {
 				if c == '@' {
 					l.Start = p
 					l.Set(p, Floor)
+					continue
+				}
+				if c == 'm' {
+					l.Set(p, Floor)
+					l.Monsters = append(l.Monsters, Monster{
+						Name: "monster.go", Glyph: 'm', Pos: p, HP: 10, MaxHP: 10, ATK: 3, Awake: true,
+					})
 					continue
 				}
 				i := strings.IndexRune(tileGlyphs, c)
