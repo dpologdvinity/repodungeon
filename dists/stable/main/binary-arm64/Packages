@@ -1,14 +1,14 @@
 Package: repodungeon
-Version: 0.4.0
+Version: 0.5.0
 Architecture: arm64
 Maintainer: Kaitlyn Bassford <dpologdvinity@users.noreply.github.com>
 Installed-Size: 3776
 Depends: git
-Filename: pool/main/r/repodungeon/repodungeon_0.4.0_arm64.deb
-Size: 1431954
-MD5sum: 9611a5d63071071831126c0dd33b6731
-SHA1: a035490b699d2d21527241e9cff416bff38faf0e
-SHA256: d90d21cbb227b957ab206f99420892dd8b38aaed47a808e13e3a46cdab0f6d42
+Filename: pool/main/r/repodungeon/repodungeon_0.5.0_arm64.deb
+Size: 1432572
+MD5sum: ec5c2e7474e4a3a1c523587ffcec99a9
+SHA1: 4da43c9c71ecb34094cb6e23ca0b720a5da57cb7
+SHA256: 92d1e7678a51a0737046d454a74ef542f62166ffed66f13a57ac6a0235af0d2e
 Section: games
 Priority: optional
 Homepage: https://github.com/dpologdvinity/repodungeon
