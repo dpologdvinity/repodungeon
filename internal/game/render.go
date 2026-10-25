@@ -44,7 +44,11 @@ func (s *State) Render() string {
 	case Inventory:
 		rows = append(rows, invHeader)
 		for i, it := range s.P.Inv {
-			rows = append(rows, cut(fmt.Sprintf("%c) %s (from %s)", 'a'+i, it.Kind.Name(), it.Source), screenW))
+			name := it.Kind.Name()
+			if it.Kind == dungeon.Weapon {
+				name = fmt.Sprintf("%s (+%d ATK)", it.Archetype, it.BonusATK)
+			}
+			rows = append(rows, cut(fmt.Sprintf("%c) %s (from %s)", 'a'+i, name, it.Source), screenW))
 		}
 		if len(s.P.Inv) == 0 {
 			rows = append(rows, "(empty)")
@@ -110,9 +114,6 @@ func (s *State) cell(l *dungeon.Level, p dungeon.Point) rune {
 		}
 		for _, it := range l.Items {
 			if it.Pos == p {
-				if it.Kind == dungeon.Weapon {
-					return ')'
-				}
 				return it.Kind.Glyph()
 			}
 		}
@@ -198,7 +199,7 @@ func (s *State) helpRows() []string {
 			"",
 			"KEYS & GIT POWERS",
 			"  h j k l or arrows   move. Walk into a monster to attack it.",
-			"  .                   rest: wait safely to recover HP (1 HP per 3 turns)",
+			"  .                   rest: wait safely to recover HP (1 HP per 4 turns)",
 			"  >                   go down (stand on the > tile first)",
 			"  1                   git stash (30 EN): 2-turn stealth to reposition",
 			"  2                   git revert (25 EN): undo damage taken last turn",

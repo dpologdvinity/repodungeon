@@ -284,13 +284,15 @@ func (s *State) inventoryKey(key string) bool {
 // otherwise index i is removed from the pack.
 func (s *State) equipWeapon(i int) {
 	w := s.P.Inv[i]
+	wPtr := new(dungeon.Item)
+	*wPtr = w
 	if s.P.Weapon != nil {
 		old := *s.P.Weapon
-		s.P.Weapon = &w
+		s.P.Weapon = wPtr
 		s.P.Inv[i] = old
 	} else {
 		s.P.Inv = slices.Delete(s.P.Inv, i, i+1)
-		s.P.Weapon = &w
+		s.P.Weapon = wPtr
 	}
 	s.say("You equip the %s.", w.Name())
 }

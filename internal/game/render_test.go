@@ -96,8 +96,8 @@ func TestRenderHelpRowsContent(t *testing.T) {
 	if !strings.Contains(p1, "git stash") || !strings.Contains(p1, "git revert") || !strings.Contains(p1, "git blame") {
 		t.Errorf("help page 1 missing git powers info:\n%s", p1)
 	}
-	if !strings.Contains(p1, "rest") {
-		t.Errorf("help page 1 missing rest explanation:\n%s", p1)
+	if !strings.Contains(p1, "rest") || !strings.Contains(p1, "(1 HP per 4 turns)") {
+		t.Errorf("help page 1 missing rest explanation or correct rate (1 HP per 4 turns):\n%s", p1)
 	}
 
 	s.Apply(" ") // next page (page 2)
@@ -250,5 +250,26 @@ func TestRenderCellTelegraphDeadOrOutOfView(t *testing.T) {
 	// Far monster outside FOV should not be visible as '!' or 'f'
 	if strings.Contains(mapRow, "!") || strings.Contains(mapRow, "f") {
 		t.Errorf("out-of-fov telegraphed monster should not be rendered: %q", mapRow)
+	}
+}
+
+func TestRenderInventoryWeaponFormatting(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"---|",
+		"|@.|",
+		"---|",
+	})
+	s := New(d)
+	s.P.Inv = append(s.P.Inv, dungeon.Item{
+		Kind:      dungeon.Weapon,
+		Archetype: dungeon.Sword,
+		BonusATK:  2,
+		Source:    "src/tool.go",
+	})
+	s.Apply("i")
+	out := s.Render()
+	want := "a) Sword (+2 ATK) (from src/tool.go)"
+	if !strings.Contains(out, want) {
+		t.Errorf("inventory rendering weapon got:\n%s\nwant substring: %q", out, want)
 	}
 }
