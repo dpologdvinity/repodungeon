@@ -54,6 +54,8 @@ type Player struct {
 	HP, MaxHP, ATK, Level, XP int
 	// Inv is the pack, in pickup order. Using an item keeps the order of the rest.
 	Inv []dungeon.Item
+	// Weapon is the equipped weapon, or nil if unarmed.
+	Weapon *dungeon.Item
 }
 
 // State is the whole game. Apply is the only way to change it from outside.
@@ -219,10 +221,31 @@ func (s *State) inventoryKey(key string) bool {
 	return false
 }
 
-// use consumes the pack item at index i. A potion heals up to 10 HP without
-// exceeding MaxHP. A scroll adds 1 ATK. Order of the other items is kept (SPEC 7.5).
+// equipWeapon equips the weapon at pack index i into the active weapon slot.
+// If a weapon was already equipped, it is swapped back into pack index i;
+// otherwise index i is removed from the pack.
+func (s *State) equipWeapon(i int) {
+	w := s.P.Inv[i]
+	if s.P.Weapon != nil {
+		old := *s.P.Weapon
+		s.P.Weapon = &w
+		s.P.Inv[i] = old
+	} else {
+		s.P.Inv = slices.Delete(s.P.Inv, i, i+1)
+		s.P.Weapon = &w
+	}
+	s.say("You equip the %s.", w.Name())
+}
+
+// use consumes or equips the pack item at index i. A potion heals up to 10 HP without
+// exceeding MaxHP. A scroll adds 1 ATK. A weapon is equipped into the active
+// weapon slot. Order of the other items is kept (SPEC 7.5).
 func (s *State) use(i int) {
 	it := s.P.Inv[i]
+	if it.Kind == dungeon.Weapon {
+		s.equipWeapon(i)
+		return
+	}
 	s.P.Inv = slices.Delete(s.P.Inv, i, i+1)
 	if it.Kind == dungeon.Potion {
 		heal := min(10, s.P.MaxHP-s.P.HP)
@@ -256,6 +279,7 @@ func (s *State) descend() {
 // pickUp moves the item at t, if any, from the level into the pack.
 // A full pack leaves the item on the floor and says so. The player has
 // already stepped onto t by then, and that still takes a turn (SPEC 7.5).
+// If the player is unarmed, picking up a weapon auto-equips it if the pack is empty.
 func (s *State) pickUp(t dungeon.Point) {
 	l := s.level()
 	for i, it := range l.Items {
@@ -267,12 +291,16 @@ func (s *State) pickUp(t dungeon.Point) {
 			return
 		}
 		l.Items = slices.Delete(l.Items, i, i+1)
+		autoEquip := it.Kind == dungeon.Weapon && s.P.Weapon == nil && len(s.P.Inv) == 0
 		s.P.Inv = append(s.P.Inv, it)
 		s.say("You pick up a %s.", it.Kind.Name())
 		if it.Kind == dungeon.Potion {
 			s.LootTodo++
-		} else {
+		} else if it.Kind == dungeon.Scroll {
 			s.LootFixme++
+		}
+		if autoEquip {
+			s.equipWeapon(0)
 		}
 		return
 	}

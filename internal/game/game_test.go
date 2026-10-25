@@ -368,3 +368,87 @@ func TestHelpScreen(t *testing.T) {
 		t.Fatal("q must still quit from the help screen")
 	}
 }
+
+func TestWeaponEquipAndPackLimit(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"---|",
+		"|@.|",
+		"---|",
+	})
+	s := New(d)
+	w := dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Sword, BonusATK: 3}
+	s.P.Inv = append(s.P.Inv, w)
+
+	// Test equipping weapon from inventory slot 0
+	s.inventoryKey("a")
+	if s.P.Weapon == nil || s.P.Weapon.BonusATK != 3 {
+		t.Errorf("expected weapon equipped with +3 ATK")
+	}
+
+	// Review Focus #5: Full pack with equipped weapon
+	for i := 0; i < packSize; i++ {
+		s.P.Inv = append(s.P.Inv, dungeon.Item{Kind: dungeon.Potion})
+	}
+	s.level().Items = append(s.level().Items, dungeon.Item{Kind: dungeon.Weapon, Pos: dungeon.Point{X: 2, Y: 1}})
+	s.Apply("l") // step onto weapon
+	if len(s.P.Inv) > packSize {
+		t.Errorf("pack overflowed beyond %d items", packSize)
+	}
+	if s.Msgs[len(s.Msgs)-1] != "Your pack is full." {
+		t.Errorf("expected full pack message, got %v", s.Msgs)
+	}
+}
+
+func TestWeaponAutoEquipAndSwap(t *testing.T) {
+	// Auto-equip on floor pickup when unarmed and inventory empty
+	d := dungeon.FromArt([]string{
+		"----|",
+		"|@..|",
+		"----|",
+	})
+	s := New(d)
+	s.level().Items = append(s.level().Items, dungeon.Item{
+		Kind: dungeon.Weapon, Archetype: dungeon.Sword, BonusATK: 3, Pos: dungeon.Point{X: 2, Y: 1},
+	})
+	s.Apply("l")
+	if s.P.Weapon == nil || s.P.Weapon.Archetype != dungeon.Sword || s.P.Weapon.BonusATK != 3 {
+		t.Fatalf("expected sword auto-equipped on empty inventory: %+v", s.P.Weapon)
+	}
+	if len(s.P.Inv) != 0 {
+		t.Fatalf("inventory should be empty after auto-equip, got %d items", len(s.P.Inv))
+	}
+
+	// Pickup weapon when already equipped: goes to inventory
+	s.level().Items = append(s.level().Items, dungeon.Item{
+		Kind: dungeon.Weapon, Archetype: dungeon.Spear, BonusATK: 2, Pos: dungeon.Point{X: 3, Y: 1},
+	})
+	s.Apply("l")
+	if s.P.Weapon == nil || s.P.Weapon.Archetype != dungeon.Sword {
+		t.Fatalf("equipped weapon changed unexpectedly: %+v", s.P.Weapon)
+	}
+	if len(s.P.Inv) != 1 || s.P.Inv[0].Archetype != dungeon.Spear {
+		t.Fatalf("expected spear in inventory, got: %+v", s.P.Inv)
+	}
+
+	// Swapping weapons: equipping spear swaps sword back to inventory
+	s.inventoryKey("a")
+	if s.P.Weapon == nil || s.P.Weapon.Archetype != dungeon.Spear {
+		t.Fatalf("expected spear equipped after swap: %+v", s.P.Weapon)
+	}
+	if len(s.P.Inv) != 1 || s.P.Inv[0].Archetype != dungeon.Sword {
+		t.Fatalf("expected sword returned to inventory slot 0, got: %+v", s.P.Inv)
+	}
+
+	// Pickup when unarmed but inventory not empty: goes to inventory, does not auto-equip
+	s.P.Weapon = nil
+	s.level().Items = append(s.level().Items, dungeon.Item{
+		Kind: dungeon.Weapon, Archetype: dungeon.Hammer, BonusATK: 3, Pos: dungeon.Point{X: 2, Y: 1},
+	})
+	s.Apply("h") // step left onto hammer
+	if s.P.Weapon != nil {
+		t.Fatalf("expected unarmed when pack was not empty, got equipped: %+v", s.P.Weapon)
+	}
+	if len(s.P.Inv) != 2 || s.P.Inv[1].Archetype != dungeon.Hammer {
+		t.Fatalf("expected hammer added to inventory, got: %+v", s.P.Inv)
+	}
+}
