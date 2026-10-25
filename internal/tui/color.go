@@ -162,7 +162,6 @@ var helpLegend = []struct {
 }{
 	{"  @ you", "@", sgrPlayer},
 	{"  & the boss", "&", sgrBoss},
-	{"  ! alert", "!", sgrTelegraph},
 	{"  ! potion", "!", sgrPotion},
 	{"  ) weapon", ")", sgrWeapon},
 	{"  ? scroll", "?", sgrScroll},
@@ -184,6 +183,9 @@ func colorHelpRow(row string) string {
 		if strings.HasPrefix(row, l.prefix) {
 			return "  " + paint(l.token, l.sgr) + row[2+len(l.token):]
 		}
+	}
+	if strings.Contains(row, "! alert") {
+		return strings.Replace(row, "! alert", paint("!", sgrTelegraph)+" alert", 1)
 	}
 	return row
 }

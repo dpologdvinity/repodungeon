@@ -135,3 +135,16 @@ func TestColorizeInventoryWeapons(t *testing.T) {
 		t.Errorf("inventory weapon line missing weapon color: %q", out)
 	}
 }
+
+// TestColorizeHelpAlert verifies the alert glyph in help page 2 is colored with sgrTelegraph.
+func TestColorizeHelpAlert(t *testing.T) {
+	d := dungeon.FromArt([]string{"-----", "|@..|", "-----"})
+	s := game.New(d)
+	s.OpenHelp()
+	s.Apply(" ") // page 2
+	out := colorize(s)
+	want := "\x1b[1;91m!\x1b[0m alert"
+	if !strings.Contains(out, want) {
+		t.Errorf("help page 2 missing colored alert glyph %q, got:\n%s", want, out)
+	}
+}
