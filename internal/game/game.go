@@ -510,7 +510,30 @@ func (s *State) monsterPhase() {
 			continue
 		}
 		dx, dy := s.P.Pos.X-m.Pos.X, s.P.Pos.Y-m.Pos.Y
+		if m.Telegraph {
+			m.Telegraph = false
+			if abs(dx)+abs(dy) == 1 {
+				dmg := (s.roll(m.ATK) * 3) / 2
+				s.P.HP -= dmg
+				s.say("%s hits you for %d.", m.Name, dmg)
+				if s.P.HP <= 0 {
+					s.P.HP = 0
+					s.Outcome = Died
+					s.KilledBy = m.Name
+					s.say("You die...")
+					return
+				}
+			} else {
+				s.say("%s's heavy blow misses!", m.Name)
+			}
+			continue
+		}
 		if abs(dx)+abs(dy) == 1 {
+			if s.rng.IntN(3) == 0 {
+				m.Telegraph = true
+				s.say("%s winds up a heavy blow!", m.Name)
+				continue
+			}
 			dmg := s.roll(m.ATK)
 			s.P.HP -= dmg
 			s.say("%s hits you for %d.", m.Name, dmg)

@@ -97,6 +97,8 @@ type Monster struct {
 	// Boss marks the final boss. Awake is set by the game when the monster
 	// notices the player; generation always leaves it false.
 	Boss, Awake bool
+	// Telegraph is true when winding up a heavy blow.
+	Telegraph bool
 }
 
 // ItemKind is the kind of a pickup.

@@ -76,9 +76,9 @@ func TestCombatSequence(t *testing.T) {
 	if s.P.Pos.X != 2 || s.P.HP != 28 || !slices.Equal(s.Msgs, []string{"main.go hits you for 2."}) {
 		t.Fatalf("1: %+v %v", s.P, s.Msgs)
 	}
-	keys(s, "l") // player 3+1-1=3 -> monster HP 1; monster 2+0-1=1
-	if s.level().Monsters[0].HP != 1 || s.P.HP != 27 ||
-		!slices.Equal(s.Msgs, []string{"You hit main.go for 3.", "main.go hits you for 1."}) {
+	keys(s, "l") // player 3+0-1=2 -> monster HP 2; monster 2+0-1=1
+	if s.level().Monsters[0].HP != 2 || s.P.HP != 27 ||
+		!slices.Equal(s.Msgs, []string{"You hit main.go for 2.", "main.go hits you for 1."}) {
 		t.Fatalf("2: %v", s.Msgs)
 	}
 	keys(s, "l") // player 3+2-1=4 -> slain
@@ -890,5 +890,169 @@ func TestRestingDirectInterfaces(t *testing.T) {
 	}
 	if s.P.HP != 21 {
 		t.Errorf("expected direct safeRestTurn to heal to 21, got %d", s.P.HP)
+	}
+}
+
+func TestMonsterTelegraphAndDodge(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"--------",
+		"|......|",
+		"--------",
+	})
+	d.Levels[0].Start = dungeon.Point{X: 3, Y: 1}
+	d.Levels[0].Monsters = []dungeon.Monster{
+		{Name: "goblin.go", Pos: dungeon.Point{X: 4, Y: 1}, HP: 20, MaxHP: 20, ATK: 4, Awake: true, Telegraph: true},
+	}
+	s := New(d)
+	m := &s.level().Monsters[0]
+
+	// Player stays adjacent: takes 1.5x damage
+	hpBefore := s.P.HP
+	s.Apply(".") // wait -> stays adjacent -> takes telegraphed hit
+	if s.P.HP >= hpBefore {
+		t.Errorf("expected damage from telegraphed strike, hpBefore=%d, hpAfter=%d", hpBefore, s.P.HP)
+	}
+	if m.Telegraph {
+		t.Errorf("telegraph flag should reset after striking")
+	}
+
+	// Player steps away to distance > 1: attack misses!
+	m.Telegraph = true
+	hpBefore = s.P.HP
+	s.Apply("h") // step left to (2, 1), monster at (4, 1): distance is 2 > 1
+	if s.P.HP != hpBefore {
+		t.Errorf("expected no damage when dodging telegraphed strike, hpBefore=%d, hpAfter=%d", hpBefore, s.P.HP)
+	}
+	if m.Telegraph {
+		t.Errorf("telegraph flag should reset after miss")
+	}
+	if !slices.Contains(s.Msgs, m.Name+"'s heavy blow misses!") {
+		t.Errorf("expected miss message, got %v", s.Msgs)
+	}
+}
+
+func TestMonsterTelegraphOrganicCycleAndDodge(t *testing.T) {
+	// Find a seed where the first IntN(3) returns 0 (triggers telegraph)
+	var seed uint64
+	for s := uint64(0); s < 100; s++ {
+		if dungeon.NewRNG(s+1).IntN(3) == 0 {
+			seed = s
+			break
+		}
+	}
+
+	d := dungeon.FromArt([]string{
+		"--------",
+		"|......|",
+		"--------",
+	})
+	d.Seed = seed
+	d.Levels[0].Start = dungeon.Point{X: 3, Y: 1}
+	d.Levels[0].Monsters = []dungeon.Monster{
+		{Name: "orc.go", Pos: dungeon.Point{X: 4, Y: 1}, HP: 50, MaxHP: 50, ATK: 6, Awake: true},
+	}
+	s := New(d)
+	m := &s.level().Monsters[0]
+
+	hpBefore := s.P.HP
+	// Turn 1: Player waits. Monster is adjacent, not telegraphed. RNG rolls 0 -> telegraphs.
+	s.Apply(".")
+	if !m.Telegraph {
+		t.Fatalf("expected monster to telegraph on turn 1 with seed %d", seed)
+	}
+	if s.P.HP != hpBefore {
+		t.Errorf("expected no damage on telegraph wind-up turn, hpBefore=%d, got %d", hpBefore, s.P.HP)
+	}
+	if !slices.Contains(s.Msgs, "orc.go winds up a heavy blow!") {
+		t.Errorf("expected windup message, got %v", s.Msgs)
+	}
+
+	// Turn 2: Player steps away to dodge (X: 2, Y: 1), distance = 2
+	s.Apply("h")
+	if m.Telegraph {
+		t.Errorf("telegraph flag should reset after dodge")
+	}
+	if s.P.HP != hpBefore {
+		t.Errorf("expected no damage when dodging telegraphed blow")
+	}
+	if !slices.Contains(s.Msgs, "orc.go's heavy blow misses!") {
+		t.Errorf("expected miss message, got %v", s.Msgs)
+	}
+}
+
+func TestMonsterTelegraphDamageMultiplier(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"--------",
+		"|......|",
+		"--------",
+	})
+	d.Levels[0].Start = dungeon.Point{X: 3, Y: 1}
+	d.Levels[0].Monsters = []dungeon.Monster{
+		{Name: "troll.go", Pos: dungeon.Point{X: 4, Y: 1}, HP: 50, MaxHP: 50, ATK: 10, Awake: true, Telegraph: true},
+	}
+	s := New(d)
+	s.P.HP = 50
+	s.P.MaxHP = 50
+
+	s.Apply(".")
+	dmg := 50 - s.P.HP
+	// Normal roll for ATK 10 is 9..11. Telegraphed 1.5x damage is:
+	// 9 -> 13, 10 -> 15, 11 -> 16. So dmg must be between 13 and 16.
+	if dmg < 13 || dmg > 16 {
+		t.Errorf("expected telegraphed damage 13..16, got %d", dmg)
+	}
+}
+
+func TestMonsterTelegraphFatalStrike(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"--------",
+		"|......|",
+		"--------",
+	})
+	d.Levels[0].Start = dungeon.Point{X: 3, Y: 1}
+	d.Levels[0].Monsters = []dungeon.Monster{
+		{Name: "boss.go", Pos: dungeon.Point{X: 4, Y: 1}, HP: 50, MaxHP: 50, ATK: 10, Awake: true, Telegraph: true},
+	}
+	s := New(d)
+	s.P.HP = 5 // low health so telegraphed strike is fatal
+
+	s.Apply(".")
+	if s.P.HP != 0 {
+		t.Errorf("expected player HP 0, got %d", s.P.HP)
+	}
+	if s.Outcome != Died {
+		t.Errorf("expected Outcome Died, got %v", s.Outcome)
+	}
+	if s.KilledBy != "boss.go" {
+		t.Errorf("expected KilledBy boss.go, got %q", s.KilledBy)
+	}
+	if !slices.Contains(s.Msgs, "You die...") {
+		t.Errorf("expected death message, got %v", s.Msgs)
+	}
+}
+
+func TestMonsterTelegraphSlainBeforeStrike(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"--------",
+		"|......|",
+		"--------",
+	})
+	d.Levels[0].Start = dungeon.Point{X: 3, Y: 1}
+	d.Levels[0].Monsters = []dungeon.Monster{
+		{Name: "weakling.go", Pos: dungeon.Point{X: 4, Y: 1}, HP: 1, MaxHP: 1, ATK: 10, Awake: true, Telegraph: true},
+	}
+	s := New(d)
+	hpBefore := s.P.HP
+
+	// Player attacks the monster moving "l" (into tile 4, 1)
+	s.Apply("l")
+	if s.level().Monsters[0].HP > 0 {
+		t.Fatalf("expected monster to be slain")
+	}
+	if s.P.HP != hpBefore {
+		t.Errorf("player should not take damage from slain monster, hpBefore=%d, got %d", hpBefore, s.P.HP)
+	}
+	if slices.Contains(s.Msgs, "weakling.go's heavy blow misses!") {
+		t.Errorf("slain monster should not emit miss message")
 	}
 }
