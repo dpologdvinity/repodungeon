@@ -390,3 +390,41 @@ func TestWeaponArchetypesAndNames(t *testing.T) {
 		t.Errorf("expected scroll item name 'FIXME scroll', got %q", scr.Name())
 	}
 }
+
+// TestWeaponSpawningManyToolFilesNoPanic verifies that a room with more tool files
+// than floor tiles does not panic due to free tile exhaustion.
+func TestWeaponSpawningManyToolFilesNoPanic(t *testing.T) {
+	var files []repo.File
+	for i := 0; i < 200; i++ {
+		files = append(files, repo.File{
+			Path:  fmt.Sprintf("script%d.sh", i),
+			Lines: 10,
+			Churn: 1,
+		})
+	}
+	files = append(files, repo.File{
+		Path:  "boss.go",
+		Lines: 100,
+		Churn: 20,
+	})
+	r := &repo.Repo{Name: "test", Head: "0123456789abcdef", Files: files}
+	d, err := Generate(r)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+	if len(d.Levels) == 0 {
+		t.Fatal("expected at least 1 level")
+	}
+	// Verify boss is still placed on the last level.
+	lastLevel := d.Levels[len(d.Levels)-1]
+	hasBoss := false
+	for _, m := range lastLevel.Monsters {
+		if m.Boss {
+			hasBoss = true
+			break
+		}
+	}
+	if !hasBoss {
+		t.Errorf("expected boss monster on last level")
+	}
+}

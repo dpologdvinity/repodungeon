@@ -486,6 +486,9 @@ func populate(l *Level, room Room, rs RoomSpec, boss *repo.File, hasBoss bool, b
 	}
 	// take removes and returns a random free tile.
 	take := func() Point {
+		if len(free) == 0 {
+			return room.Center()
+		}
 		i := rng.IntN(len(free))
 		p := free[i]
 		free = append(free[:i], free[i+1:]...)
@@ -534,6 +537,13 @@ func populate(l *Level, room Room, rs RoomSpec, boss *repo.File, hasBoss bool, b
 	}
 
 	for _, f := range rs.Files {
+		minFree := 0
+		if hasBoss {
+			minFree = 1
+		}
+		if len(free) <= minFree {
+			break
+		}
 		if isToolFile(f.Path) {
 			arch := weaponArchetypeFor(rng)
 			bonus := weaponBonusFor(arch, rng)
