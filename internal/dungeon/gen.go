@@ -107,16 +107,65 @@ const (
 	Potion ItemKind = iota
 	// Scroll comes from a FIXME comment.
 	Scroll
+	// Weapon comes from tool files or guaranteed floor spawn.
+	Weapon
 )
+
+// WeaponArchetype is the combat style and attack behavior of a weapon.
+type WeaponArchetype uint8
+
+const (
+	// Sword is standard melee with reliable bonus damage.
+	Sword WeaponArchetype = iota
+	// Spear has 2-tile reach without stepping into melee range.
+	Spear
+	// Hammer deals heavy blunt damage and knocks back enemies.
+	Hammer
+	// Dagger deals critical damage against unalert or backstabbed enemies.
+	Dagger
+)
+
+// String returns the name of the weapon archetype.
+func (a WeaponArchetype) String() string {
+	switch a {
+	case Sword:
+		return "Sword"
+	case Spear:
+		return "Spear"
+	case Hammer:
+		return "Hammer"
+	case Dagger:
+		return "Dagger"
+	default:
+		return "Weapon"
+	}
+}
+
+// Name returns the name of the weapon archetype.
+func (a WeaponArchetype) Name() string {
+	return a.String()
+}
 
 // Item is a pickup lying on a floor tile.
 type Item struct {
 	// Kind is the item type.
 	Kind ItemKind
-	// Source is the repo path of the file whose TODO or FIXME made it.
+	// Source is the repo path of the file whose TODO or FIXME or tool made it.
 	Source string
 	// Pos is the tile the item lies on.
 	Pos Point
+	// Archetype is the weapon combat archetype when Kind == Weapon.
+	Archetype WeaponArchetype
+	// BonusATK is the attack bonus provided when equipped.
+	BonusATK int
+}
+
+// Name returns the display name of the item.
+func (it Item) Name() string {
+	if it.Kind == Weapon {
+		return it.Archetype.String()
+	}
+	return it.Kind.Name()
 }
 
 // Level is one map with its rooms and contents.
@@ -341,18 +390,30 @@ func FromArt(levels ...[]string) *Dungeon {
 
 // Name returns the display name of k.
 func (k ItemKind) Name() string {
-	if k == Potion {
+	switch k {
+	case Potion:
 		return "TODO potion"
+	case Scroll:
+		return "FIXME scroll"
+	case Weapon:
+		return "weapon"
+	default:
+		return "item"
 	}
-	return "FIXME scroll"
 }
 
-// Glyph returns the map character of k: '!' for potions, '?' for scrolls.
+// Glyph returns the map character of k: '!' for potions, '?' for scrolls, ')' for weapons.
 func (k ItemKind) Glyph() rune {
-	if k == Potion {
+	switch k {
+	case Potion:
 		return '!'
+	case Scroll:
+		return '?'
+	case Weapon:
+		return ')'
+	default:
+		return '?'
 	}
-	return '?'
 }
 
 // Generate builds the whole dungeon from a scanned repo.
@@ -391,6 +452,7 @@ func Generate(r *repo.Repo) (*Dungeon, error) {
 		for ri, rs := range rooms {
 			populate(l, l.Rooms[ri], rs, boss, last && ri == len(rooms)-1, d.BossName, rng)
 		}
+		ensureLevelWeapon(l, rooms, rng)
 		d.Levels = append(d.Levels, l)
 	}
 	return d, nil
@@ -471,6 +533,20 @@ func populate(l *Level, room Room, rs RoomSpec, boss *repo.File, hasBoss bool, b
 		l.Items = append(l.Items, Item{Kind: Scroll, Source: src, Pos: take()})
 	}
 
+	for _, f := range rs.Files {
+		if isToolFile(f.Path) {
+			arch := weaponArchetypeFor(rng)
+			bonus := weaponBonusFor(arch, rng)
+			l.Items = append(l.Items, Item{
+				Kind:      Weapon,
+				Source:    f.Path,
+				Pos:       take(),
+				Archetype: arch,
+				BonusATK:  bonus,
+			})
+		}
+	}
+
 	if hasBoss {
 		hp, atk := BossStats(boss.Lines, boss.Churn)
 		l.Monsters = append(l.Monsters, Monster{Name: bossName, Path: boss.Path, Glyph: '&',
@@ -486,4 +562,104 @@ func monsterGlyph(name string) rune {
 		}
 	}
 	return 'm'
+}
+
+// isToolFile reports whether the file at p is a build/tool file that spawns a weapon.
+func isToolFile(p string) bool {
+	base := path.Base(p)
+	lower := strings.ToLower(base)
+	if lower == "makefile" || lower == "gnumakefile" || lower == "dockerfile" || lower == "containerfile" ||
+		strings.HasPrefix(lower, "dockerfile.") || strings.HasSuffix(lower, ".dockerfile") {
+		return true
+	}
+	if lower == "go.mod" || lower == "package.json" || lower == "cargo.toml" || lower == "pom.xml" || lower == "build.gradle" || lower == "cmakelists.txt" {
+		return true
+	}
+	ext := path.Ext(lower)
+	if ext == ".sh" || ext == ".bash" || ext == ".zsh" {
+		return true
+	}
+	if strings.Contains(p, ".github/") || strings.Contains(p, ".circleci/") || lower == ".gitlab-ci.yml" || lower == ".travis.yml" {
+		return true
+	}
+	return false
+}
+
+// weaponArchetypeFor picks an archetype using rng.
+func weaponArchetypeFor(rng *RNG) WeaponArchetype {
+	if rng == nil {
+		return Sword
+	}
+	return WeaponArchetype(rng.IntN(4))
+}
+
+// weaponBonusFor returns the bonus ATK for a given archetype.
+func weaponBonusFor(arch WeaponArchetype, rng *RNG) int {
+	switch arch {
+	case Sword:
+		if rng != nil {
+			return 2 + rng.IntN(3)
+		}
+		return 3
+	case Spear:
+		return 2
+	case Hammer:
+		return 3
+	case Dagger:
+		return 2
+	default:
+		return 2
+	}
+}
+
+// ensureLevelWeapon guarantees that at least one weapon spawns on the level.
+func ensureLevelWeapon(l *Level, rooms []RoomSpec, rng *RNG) {
+	for _, it := range l.Items {
+		if it.Kind == Weapon {
+			return
+		}
+	}
+	if len(l.Rooms) == 0 {
+		return
+	}
+	used := map[Point]bool{l.Start: true}
+	if l.HasStairs {
+		used[l.Stairs] = true
+	}
+	for _, m := range l.Monsters {
+		used[m.Pos] = true
+	}
+	for _, it := range l.Items {
+		used[it.Pos] = true
+	}
+	for ri, r := range l.Rooms {
+		var free []Point
+		for _, p := range r.Interior() {
+			if !used[p] {
+				free = append(free, p)
+			}
+		}
+		if len(free) > 0 {
+			var pos Point
+			if rng != nil {
+				pos = free[rng.IntN(len(free))]
+			} else {
+				pos = free[0]
+			}
+			arch := weaponArchetypeFor(rng)
+			bonus := weaponBonusFor(arch, rng)
+			src := "floor"
+			if ri < len(rooms) && len(rooms[ri].Files) > 0 {
+				src = rooms[ri].Files[0].Path
+			}
+			l.Items = append(l.Items, Item{
+				Kind:      Weapon,
+				Source:    src,
+				Pos:       pos,
+				Archetype: arch,
+				BonusATK:  bonus,
+			})
+			return
+		}
+	}
 }
