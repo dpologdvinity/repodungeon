@@ -32,6 +32,10 @@ func TestGoldenAssert(t *testing.T) {
 }
 
 func TestGoldenMismatch(t *testing.T) {
+	oldUpdate := *update
+	defer func() { *update = oldUpdate }()
+	*update = false
+
 	dir := filepath.Join("testdata", "golden")
 	_ = os.MkdirAll(dir, 0o755)
 	file := filepath.Join(dir, "mismatch_test.txt")

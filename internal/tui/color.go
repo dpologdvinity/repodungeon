@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dpologdvinity/repodungeon/internal/dungeon"
 	"github.com/dpologdvinity/repodungeon/internal/game"
 )
 
@@ -13,20 +14,22 @@ import (
 // stays plain text: this file only wraps parts of it in escape codes and never
 // adds, removes or moves a visible character (a test checks this).
 const (
-	sgrReset  = "\x1b[0m"
-	sgrWall   = "37"   // light gray
-	sgrDim    = "90"   // dark gray: floor, corridors, footer
-	sgrDoor   = "33"   // yellow
-	sgrStairs = "1;93" // bold bright yellow
-	sgrPlayer = "1;92" // bold bright green
-	sgrBoss   = "1;91" // bold bright red
-	sgrMonst  = "31"   // red
-	sgrPotion = "95"   // bright magenta
-	sgrScroll = "96"   // bright cyan
-	sgrTitle  = "1;93" // bold bright yellow: headings
-	sgrGood   = "32"   // green
-	sgrWarn   = "33"   // yellow
-	sgrBad    = "1;91" // bold bright red
+	sgrReset     = "\x1b[0m"
+	sgrWall      = "37"   // light gray
+	sgrDim       = "90"   // dark gray: floor, corridors, footer
+	sgrDoor      = "33"   // yellow
+	sgrStairs    = "1;93" // bold bright yellow
+	sgrPlayer    = "1;92" // bold bright green
+	sgrBoss      = "1;91" // bold bright red
+	sgrMonst     = "31"   // red
+	sgrPotion    = "95"   // bright magenta
+	sgrScroll    = "96"   // bright cyan
+	sgrWeapon    = "1;94" // bold bright blue
+	sgrTelegraph = "1;91" // bold bright red alert
+	sgrTitle     = "1;93" // bold bright yellow: headings
+	sgrGood      = "32"   // green
+	sgrWarn      = "33"   // yellow
+	sgrBad       = "1;91" // bold bright red
 )
 
 // Screen rows (SPEC 7.7): 0 messages, 1-21 body, 22 status, 23 footer.
@@ -57,6 +60,8 @@ func glyphStyle(r rune) string {
 		return sgrPotion
 	case '?':
 		return sgrScroll
+	case ')':
+		return sgrWeapon
 	case '+':
 		return sgrDoor
 	case '>':
@@ -70,7 +75,7 @@ func glyphStyle(r rune) string {
 }
 
 // colorMapRow colors a map row, grouping equal neighbors into one escape code.
-func colorMapRow(row string) string {
+func colorMapRow(s *game.State, y int, row string) string {
 	var b strings.Builder
 	var run []rune
 	cur := ""
@@ -78,8 +83,17 @@ func colorMapRow(row string) string {
 		b.WriteString(paint(string(run), cur))
 		run = run[:0]
 	}
-	for _, r := range row {
-		if st := glyphStyle(r); st != cur {
+	for x, r := range []rune(row) {
+		st := glyphStyle(r)
+		if r == '!' && s != nil {
+			pt := dungeon.Point{X: x, Y: y}
+			if s.Visible(pt) {
+				if m := s.MonsterAt(pt); m != nil && m.Telegraph {
+					st = sgrTelegraph
+				}
+			}
+		}
+		if st != cur {
 			flush()
 			cur = st
 		}
@@ -106,7 +120,7 @@ func colorize(s *game.State) string {
 		case s.Mode == game.Inventory:
 			rows[i] = colorInventoryRow(row)
 		default:
-			rows[i] = colorMapRow(row)
+			rows[i] = colorMapRow(s, i-1, row)
 		}
 	}
 	return strings.Join(rows, "\n") + "\n"
@@ -143,33 +157,35 @@ func colorStatus(s *game.State, row string) string {
 
 // helpLegend maps the start of a legend line on the help screen to the text
 // that is colored like on the map.
-var helpLegend = []struct{ prefix, token string }{
-	{"  @ you", "@"},
-	{"  & the boss", "&"},
-	{"  ! potion", "!"},
-	{"  ? scroll", "?"},
-	{"  a-z a monster", "a-z"},
-	{"  . floor", "."},
-	{"  # corridor", "#"},
-	{"  + door", "+"},
-	{"  - | walls", "- |"},
-	{"  > stairs", ">"},
+var helpLegend = []struct {
+	prefix, token, sgr string
+}{
+	{"  @ you", "@", sgrPlayer},
+	{"  & the boss", "&", sgrBoss},
+	{"  ! potion", "!", sgrPotion},
+	{"  ) weapon", ")", sgrWeapon},
+	{"  ? scroll", "?", sgrScroll},
+	{"  a-z a monster", "a-z", sgrMonst},
+	{"  . floor", ".", sgrDim},
+	{"  # corridor", "#", sgrDim},
+	{"  + door", "+", sgrDoor},
+	{"  - | walls", "- |", sgrWall},
+	{"  > stairs", ">", sgrStairs},
 }
 
 // colorHelpRow colors headings and the glyph at the start of legend lines.
 func colorHelpRow(row string) string {
 	switch row {
-	case "HOW TO PLAY", "KEYS", "THE MAP":
+	case "HOW TO PLAY", "KEYS", "THE MAP", "KEYS & GIT POWERS", "THE MAP & WEAPONS", "WEAPONS & COMBAT":
 		return paint(row, sgrTitle)
 	}
 	for _, l := range helpLegend {
 		if strings.HasPrefix(row, l.prefix) {
-			sgr := sgrMonst // "a-z" is the only multi-letter token that is not a symbol
-			if l.token != "a-z" {
-				sgr = glyphStyle([]rune(l.token)[0])
-			}
-			return "  " + paint(l.token, sgr) + row[2+len(l.token):]
+			return "  " + paint(l.token, l.sgr) + row[2+len(l.token):]
 		}
+	}
+	if strings.Contains(row, "! alert") {
+		return strings.Replace(row, "! alert", paint("!", sgrTelegraph)+" alert", 1)
 	}
 	return row
 }
@@ -183,6 +199,9 @@ func colorInventoryRow(row string) string {
 		return paint(row, sgrPotion)
 	case strings.Contains(row, "FIXME scroll"):
 		return paint(row, sgrScroll)
+	case strings.Contains(row, "weapon") || strings.Contains(row, "Sword") ||
+		strings.Contains(row, "Spear") || strings.Contains(row, "Hammer") || strings.Contains(row, "Dagger"):
+		return paint(row, sgrWeapon)
 	}
 	return row
 }

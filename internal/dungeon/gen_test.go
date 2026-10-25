@@ -171,7 +171,7 @@ func TestGenerateEntities(t *testing.T) {
 	if !slices.Equal(mons, []string{"README.md", "go.mod"}) {
 		t.Fatalf("monsters %v", mons)
 	}
-	if !slices.Equal(srcs, []string{"TODO potion:README.md", "TODO potion:README.md", "TODO potion:main.go", "FIXME scroll:main.go"}) {
+	if !slices.Equal(srcs, []string{"TODO potion:README.md", "TODO potion:README.md", "TODO potion:main.go", "FIXME scroll:main.go", "weapon:go.mod"}) {
 		t.Fatalf("items %v", srcs)
 	}
 	if m := l0.Monsters[0]; m.HP != 8 || m.ATK != 4 || m.Glyph != 'r' {
@@ -285,5 +285,146 @@ func TestGenerateMonsterTiebreakers(t *testing.T) {
 	}
 	if len(d.Levels[0].Monsters) == 0 {
 		t.Fatal("expected monsters placed")
+	}
+}
+
+// TestWeaponSpawning verifies that tool files generate Weapon items with glyph ')'.
+func TestWeaponSpawning(t *testing.T) {
+	files := []repo.File{
+		{Path: "Makefile", Lines: 30, Churn: 5},
+		{Path: "main.go", Lines: 100, Churn: 10},
+	}
+	r := &repo.Repo{Name: "test", Head: "0123456789abcdef", Files: files}
+	d, err := Generate(r)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+	hasWeapon := false
+	for _, it := range d.Levels[0].Items {
+		if it.Kind == Weapon {
+			hasWeapon = true
+			if it.Kind.Glyph() != ')' {
+				t.Errorf("expected weapon glyph ')', got %c", it.Kind.Glyph())
+			}
+			if it.Source != "Makefile" {
+				t.Errorf("expected source 'Makefile', got %q", it.Source)
+			}
+		}
+	}
+	if !hasWeapon {
+		t.Errorf("expected at least one weapon to spawn")
+	}
+}
+
+// TestGuaranteedWeaponSpawning verifies that levels without tool files still spawn at least 1 weapon.
+func TestGuaranteedWeaponSpawning(t *testing.T) {
+	files := []repo.File{
+		{Path: "main.go", Lines: 100, Churn: 10},
+		{Path: "helper.go", Lines: 50, Churn: 5},
+	}
+	r := &repo.Repo{Name: "test", Head: "0123456789abcdef", Files: files}
+	d, err := Generate(r)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+	for i, l := range d.Levels {
+		hasWeapon := false
+		for _, it := range l.Items {
+			if it.Kind == Weapon {
+				hasWeapon = true
+				if it.Kind.Glyph() != ')' {
+					t.Errorf("level %d: expected glyph ')', got %c", i, it.Kind.Glyph())
+				}
+				if it.BonusATK <= 0 {
+					t.Errorf("level %d: expected positive BonusATK, got %d", i, it.BonusATK)
+				}
+			}
+		}
+		if !hasWeapon {
+			t.Errorf("level %d: expected at least one weapon to spawn", i)
+		}
+	}
+}
+
+// TestWeaponArchetypesAndNames verifies string representations, naming, and glyphs.
+func TestWeaponArchetypesAndNames(t *testing.T) {
+	if Weapon != 2 {
+		t.Errorf("expected Weapon ItemKind == 2, got %d", Weapon)
+	}
+	if Weapon.Glyph() != ')' {
+		t.Errorf("expected weapon glyph ')', got %c", Weapon.Glyph())
+	}
+	if Weapon.Name() != "weapon" {
+		t.Errorf("expected weapon name 'weapon', got %q", Weapon.Name())
+	}
+
+	archetypes := []struct {
+		arch WeaponArchetype
+		name string
+	}{
+		{Sword, "Sword"},
+		{Spear, "Spear"},
+		{Hammer, "Hammer"},
+		{Dagger, "Dagger"},
+	}
+
+	for _, tc := range archetypes {
+		if tc.arch.String() != tc.name {
+			t.Errorf("expected %q, got %q", tc.name, tc.arch.String())
+		}
+		if tc.arch.Name() != tc.name {
+			t.Errorf("expected %q, got %q", tc.name, tc.arch.Name())
+		}
+		it := Item{Kind: Weapon, Archetype: tc.arch, BonusATK: 3}
+		if it.Name() != tc.name {
+			t.Errorf("expected item name %q, got %q", tc.name, it.Name())
+		}
+	}
+
+	pot := Item{Kind: Potion}
+	if pot.Name() != "TODO potion" {
+		t.Errorf("expected potion item name 'TODO potion', got %q", pot.Name())
+	}
+	scr := Item{Kind: Scroll}
+	if scr.Name() != "FIXME scroll" {
+		t.Errorf("expected scroll item name 'FIXME scroll', got %q", scr.Name())
+	}
+}
+
+// TestWeaponSpawningManyToolFilesNoPanic verifies that a room with more tool files
+// than floor tiles does not panic due to free tile exhaustion.
+func TestWeaponSpawningManyToolFilesNoPanic(t *testing.T) {
+	var files []repo.File
+	for i := 0; i < 200; i++ {
+		files = append(files, repo.File{
+			Path:  fmt.Sprintf("script%d.sh", i),
+			Lines: 10,
+			Churn: 1,
+		})
+	}
+	files = append(files, repo.File{
+		Path:  "boss.go",
+		Lines: 100,
+		Churn: 20,
+	})
+	r := &repo.Repo{Name: "test", Head: "0123456789abcdef", Files: files}
+	d, err := Generate(r)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+	if len(d.Levels) == 0 {
+		t.Fatal("expected at least 1 level")
+	}
+	// Verify boss is still placed on the last level.
+	lastLevel := d.Levels[len(d.Levels)-1]
+	hasBoss := false
+	for _, m := range lastLevel.Monsters {
+		if m.Boss {
+			hasBoss = true
+			break
+		}
+	}
+	if !hasBoss {
+		t.Errorf("expected boss monster on last level")
 	}
 }

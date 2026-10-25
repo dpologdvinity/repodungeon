@@ -69,3 +69,82 @@ func TestColorizeHP(t *testing.T) {
 		}
 	}
 }
+
+// TestColorizeWeaponAndTelegraph proves weapons and telegraphed monsters get styled.
+func TestColorizeWeaponAndTelegraph(t *testing.T) {
+	d := dungeon.FromArt([]string{"-----", "|@..|", "-----"})
+	l := d.Levels[0]
+	l.Items = []dungeon.Item{{Kind: dungeon.Weapon, Archetype: dungeon.Spear, Pos: dungeon.Point{X: 2, Y: 1}}}
+	l.Monsters = []dungeon.Monster{
+		{Name: "m.go", Glyph: 'm', Pos: dungeon.Point{X: 3, Y: 1}, HP: 5, MaxHP: 5, ATK: 1, Awake: true, Telegraph: true},
+	}
+	s := game.New(d)
+	out := colorize(s)
+	// Weapon glyph ')' should be formatted in bold blue/cyan
+	if !strings.Contains(out, "\x1b[1;94m)") && !strings.Contains(out, "\x1b[1;36m)") {
+		t.Errorf("weapon glyph missing expected blue/cyan color: %q", out)
+	}
+	// Telegraphed monster alert should be formatted in bold red
+	if !strings.Contains(out, "\x1b[1;91m!") && !strings.Contains(out, "\x1b[1;31m!") {
+		t.Errorf("telegraphed monster missing expected bold red alert color: %q", out)
+	}
+}
+
+// TestColorizeKeepsTextWithWeaponsAndTelegraph proves strip(colorize(s)) == s.Render()
+// with weapons, telegraphed monsters, and new status HUD.
+func TestColorizeKeepsTextWithWeaponsAndTelegraph(t *testing.T) {
+	d := dungeon.FromArt([]string{"------", "|@...|", "------"})
+	l := d.Levels[0]
+	l.Items = []dungeon.Item{
+		{Kind: dungeon.Weapon, Archetype: dungeon.Spear, Pos: dungeon.Point{X: 2, Y: 1}},
+		{Kind: dungeon.Potion, Pos: dungeon.Point{X: 3, Y: 1}},
+	}
+	l.Monsters = []dungeon.Monster{
+		{Name: "telegraph.go", Glyph: 't', Pos: dungeon.Point{X: 4, Y: 1}, HP: 5, MaxHP: 5, ATK: 2, Awake: true, Telegraph: true},
+	}
+	s := game.New(d)
+	s.P.Weapon = &dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Sword, BonusATK: 3}
+	s.P.GitEnergy = 80
+	s.P.Inv = append(s.P.Inv, dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Spear, Source: "tools/test.go"})
+
+	for _, setup := range []func(){
+		func() {},
+		func() { s.Apply("i") },
+		func() { s.Apply("esc"); s.OpenHelp() },
+		func() { s.Apply(" ") }, // help page 2
+		func() { s.Apply(" "); s.P.HP = 5 },
+		func() { s.Apply("q") },
+	} {
+		setup()
+		if got, want := strip(colorize(s)), s.Render(); got != want {
+			t.Fatalf("mode %v: text changed\ngot:\n%s\nwant:\n%s", s.Mode, got, want)
+		}
+	}
+}
+
+// TestColorizeInventoryWeapons verifies weapons in inventory are styled.
+func TestColorizeInventoryWeapons(t *testing.T) {
+	d := dungeon.FromArt([]string{"-----", "|@..|", "-----"})
+	s := game.New(d)
+	s.P.Inv = []dungeon.Item{
+		{Kind: dungeon.Weapon, Archetype: dungeon.Hammer, Source: "tools/build.go"},
+	}
+	s.Apply("i")
+	out := colorize(s)
+	if !strings.Contains(out, "\x1b[1;94m") && !strings.Contains(out, "\x1b[1;36m") {
+		t.Errorf("inventory weapon line missing weapon color: %q", out)
+	}
+}
+
+// TestColorizeHelpAlert verifies the alert glyph in help page 2 is colored with sgrTelegraph.
+func TestColorizeHelpAlert(t *testing.T) {
+	d := dungeon.FromArt([]string{"-----", "|@..|", "-----"})
+	s := game.New(d)
+	s.OpenHelp()
+	s.Apply(" ") // page 2
+	out := colorize(s)
+	want := "\x1b[1;91m!\x1b[0m alert"
+	if !strings.Contains(out, want) {
+		t.Errorf("help page 2 missing colored alert glyph %q, got:\n%s", want, out)
+	}
+}
