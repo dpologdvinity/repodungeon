@@ -56,6 +56,8 @@ type Player struct {
 	Inv []dungeon.Item
 	// Weapon is the equipped weapon, or nil if unarmed.
 	Weapon *dungeon.Item
+	// StashTurns is the remaining duration of git stash stealth.
+	StashTurns int
 }
 
 // State is the whole game. Apply is the only way to change it from outside.
@@ -320,11 +322,16 @@ func (s *State) monsterAt(p dungeon.Point) *dungeon.Monster {
 
 // move tries to step by d and reports whether a turn passed.
 // A living monster on the target tile is attacked instead of entered.
+// With a spear equipped, a living monster 2 tiles away is attacked if the
+// intervening tile is walkable and free of monsters.
 // A non-walkable tile does nothing and costs no turn (SPEC 7.2).
 func (s *State) move(d dungeon.Point) bool {
 	t := dungeon.Point{X: s.P.Pos.X + d.X, Y: s.P.Pos.Y + d.Y}
 	if m := s.monsterAt(t); m != nil {
 		s.attack(m)
+		return true
+	}
+	if s.spearReachAttack(d) {
 		return true
 	}
 	if !dungeon.Walkable(s.level().At(t)) {
@@ -335,28 +342,91 @@ func (s *State) move(d dungeon.Point) bool {
 	return true
 }
 
+// spearReachAttack checks if the player is wielding a spear and can perform a 2-tile
+// reach attack in direction d. If the intervening tile is walkable and has no monster,
+// and the 2nd tile holds a living monster, it attacks that monster without moving the player.
+func (s *State) spearReachAttack(d dungeon.Point) bool {
+	if s.P.Weapon == nil || s.P.Weapon.Archetype != dungeon.Spear {
+		return false
+	}
+	t1 := dungeon.Point{X: s.P.Pos.X + d.X, Y: s.P.Pos.Y + d.Y}
+	if !dungeon.Walkable(s.level().At(t1)) || s.monsterAt(t1) != nil {
+		return false
+	}
+	t2 := dungeon.Point{X: s.P.Pos.X + 2*d.X, Y: s.P.Pos.Y + 2*d.Y}
+	m := s.monsterAt(t2)
+	if m == nil {
+		return false
+	}
+	s.attack(m)
+	return true
+}
+
+// hammerKnockback pushes m by vector d. If the destination tile is blocked
+// by a wall, the player, or another living monster, m takes +2 collision damage.
+func (s *State) hammerKnockback(m *dungeon.Monster, d dungeon.Point) {
+	if m == nil || m.HP <= 0 {
+		return
+	}
+	dest := dungeon.Point{X: m.Pos.X + d.X, Y: m.Pos.Y + d.Y}
+	if dest == s.P.Pos || !dungeon.Walkable(s.level().At(dest)) || s.monsterAt(dest) != nil {
+		m.HP -= 2
+		s.say("%s takes 2 collision damage.", m.Name)
+		if m.HP <= 0 {
+			s.slay(m)
+		}
+		return
+	}
+	m.Pos = dest
+}
+
+// daggerCritical returns the damage multiplier for a dagger attack against m:
+// 2 if m is asleep or the player is in git stash stealth, 1 otherwise.
+func (s *State) daggerCritical(m *dungeon.Monster) int {
+	if m != nil && (!m.Awake || s.P.StashTurns > 0) {
+		return 2
+	}
+	return 1
+}
+
 // roll is the damage of an attack with strength atk: atk-1..atk+1, at least 1.
 // The player and the monsters share it and draw from the one combat RNG,
 // so the order of calls matters for reproducibility (SPEC 7.3).
 func (s *State) roll(atk int) int { return max(1, atk+s.rng.IntN(3)-1) }
 
-// attack makes the player hit m. A kill gives XP equal to the monster's MaxHP.
-// Slaying the boss ends the run as Won. The slain monster is not removed from
-// the slice: its HP stays <= 0. That keeps monster indices stable and the
-// monster phase deterministic (SPEC 7.3).
-func (s *State) attack(m *dungeon.Monster) {
-	dmg := s.roll(s.P.ATK)
-	m.HP -= dmg
-	s.say("You hit %s for %d.", m.Name, dmg)
-	if m.HP > 0 {
-		return
-	}
+// slay marks m as killed, credits XP, and handles boss defeat.
+func (s *State) slay(m *dungeon.Monster) {
 	s.say("You slay %s!", m.Name)
 	s.Kills++
 	s.gainXP(m.MaxHP)
 	if m.Boss {
 		s.say("%s is defeated! You win!", m.Name)
 		s.Outcome = Won
+	}
+}
+
+// attack makes the player hit m. A kill gives XP equal to the monster's MaxHP.
+// Slaying the boss ends the run as Won. The slain monster is not removed from
+// the slice: its HP stays <= 0. That keeps monster indices stable and the
+// monster phase deterministic (SPEC 7.3).
+func (s *State) attack(m *dungeon.Monster) {
+	atk := s.P.ATK
+	if s.P.Weapon != nil {
+		atk += s.P.Weapon.BonusATK
+	}
+	dmg := s.roll(atk)
+	if s.P.Weapon != nil && s.P.Weapon.Archetype == dungeon.Dagger {
+		dmg *= s.daggerCritical(m)
+	}
+	m.HP -= dmg
+	s.say("You hit %s for %d.", m.Name, dmg)
+	if m.HP <= 0 {
+		s.slay(m)
+		return
+	}
+	if s.P.Weapon != nil && s.P.Weapon.Archetype == dungeon.Hammer {
+		d := dungeon.Point{X: sign(m.Pos.X - s.P.Pos.X), Y: sign(m.Pos.Y - s.P.Pos.Y)}
+		s.hammerKnockback(m, d)
 	}
 }
 

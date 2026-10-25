@@ -452,3 +452,291 @@ func TestWeaponAutoEquipAndSwap(t *testing.T) {
 		t.Fatalf("expected hammer added to inventory, got: %+v", s.P.Inv)
 	}
 }
+
+func TestWeaponCombatMechanics(t *testing.T) {
+	// 1. Spear 2-tile reach attack
+	d := dungeon.FromArt([]string{
+		"------|",
+		"|@....|",
+		"------|",
+	})
+	s := New(d)
+	s.P.Weapon = &dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Spear, BonusATK: 2}
+	s.level().Monsters = append(s.level().Monsters, dungeon.Monster{
+		Name: "target.go", Pos: dungeon.Point{X: 3, Y: 1}, HP: 10, MaxHP: 10, ATK: 2,
+	})
+
+	// Pressing 'l' (right) toward monster at distance 2 should attack without changing P.Pos
+	startPos := s.P.Pos
+	s.Apply("l")
+	if s.P.Pos != startPos {
+		t.Errorf("spear attack should not advance player position: %v vs %v", s.P.Pos, startPos)
+	}
+	if s.level().Monsters[0].HP >= 10 {
+		t.Errorf("spear attack should have damaged monster, HP is %d", s.level().Monsters[0].HP)
+	}
+
+	// Review Focus #1: Spear obstructed by wall should not attack through walls
+	s.level().Set(dungeon.Point{X: 2, Y: 1}, dungeon.WallV)
+	hpBefore := s.level().Monsters[0].HP
+	s.Apply("l")
+	if s.level().Monsters[0].HP != hpBefore {
+		t.Errorf("spear should not attack through solid wall")
+	}
+
+	// Review Focus #1: Spear does not target dead monster at distance 2
+	s.level().Set(dungeon.Point{X: 2, Y: 1}, dungeon.Floor) // clear wall
+	s.level().Monsters[0].HP = 0                            // mark dead
+	s.Apply("l")
+	// Since monster at distance 2 is dead, player should step into tile 1
+	if s.P.Pos != (dungeon.Point{X: 2, Y: 1}) {
+		t.Errorf("expected player to advance onto walkable tile when 2-tile monster is dead, got %v", s.P.Pos)
+	}
+
+	// 2. Hammer knockback & collision damage
+	dHammer := dungeon.FromArt([]string{
+		"--------|",
+		"|@.....||",
+		"--------|",
+	})
+	sH := New(dHammer)
+	sH.P.Weapon = &dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Hammer, BonusATK: 3}
+	sH.level().Monsters = append(sH.level().Monsters, dungeon.Monster{
+		Name: "block.go", Pos: dungeon.Point{X: 2, Y: 1}, HP: 20, MaxHP: 20, ATK: 2,
+	})
+
+	// Hit with open space behind target: monster pushed from (2,1) to (3,1)
+	sH.Apply("l")
+	if sH.level().Monsters[0].Pos != (dungeon.Point{X: 3, Y: 1}) {
+		t.Errorf("expected hammer to knock monster to (3,1), got %v", sH.level().Monsters[0].Pos)
+	}
+
+	// Hit with wall behind target: wall at (4,1), monster at (3,1)
+	sH.level().Set(dungeon.Point{X: 4, Y: 1}, dungeon.WallV)
+	// Player steps forward to (2,1) adjacent to monster
+	sH.Apply("l")
+	if sH.P.Pos != (dungeon.Point{X: 2, Y: 1}) {
+		t.Fatalf("expected player at (2,1), got %v", sH.P.Pos)
+	}
+	hpBeforeHit := sH.level().Monsters[0].HP
+	// Player hits monster at (3,1), hammer attempts knockback into wall at (4,1)
+	sH.Apply("l")
+	// Monster should remain at (3,1) due to wall at (4,1)
+	if sH.level().Monsters[0].Pos != (dungeon.Point{X: 3, Y: 1}) {
+		t.Errorf("monster should not move when knockback is blocked by wall: %v", sH.level().Monsters[0].Pos)
+	}
+	// Damage should include normal roll (P.ATK 3 + Weapon 3 = 6 -> roll 5..7) + 2 collision damage
+	damageTaken := hpBeforeHit - sH.level().Monsters[0].HP
+	if damageTaken < 7 || damageTaken > 9 {
+		t.Errorf("expected damage with collision 7..9, got %d", damageTaken)
+	}
+
+	// Hit with another living monster blocking destination
+	dBlocked := dungeon.FromArt([]string{
+		"--------|",
+		"|@.....||",
+		"--------|",
+	})
+	sB := New(dBlocked)
+	sB.P.Weapon = &dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Hammer, BonusATK: 3}
+	sB.level().Monsters = []dungeon.Monster{
+		{Name: "front.go", Pos: dungeon.Point{X: 2, Y: 1}, HP: 20, MaxHP: 20, ATK: 2},
+		{Name: "rear.go", Pos: dungeon.Point{X: 3, Y: 1}, HP: 20, MaxHP: 20, ATK: 2},
+	}
+	hpBeforeFront := sB.level().Monsters[0].HP
+	sB.Apply("l")
+	if sB.level().Monsters[0].Pos != (dungeon.Point{X: 2, Y: 1}) {
+		t.Errorf("monster should not move when destination holds another monster, pos: %v", sB.level().Monsters[0].Pos)
+	}
+	dmgBlocked := hpBeforeFront - sB.level().Monsters[0].HP
+	if dmgBlocked < 7 || dmgBlocked > 9 {
+		t.Errorf("expected 7..9 damage including collision, got %d", dmgBlocked)
+	}
+
+	// 3. Dagger critical damage on sleeping and stashed enemies
+	dDagger := dungeon.FromArt([]string{
+		"------|",
+		"|@...||",
+		"------|",
+	})
+	sD := New(dDagger)
+	sD.P.Weapon = &dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Dagger, BonusATK: 1}
+	sD.level().Monsters = []dungeon.Monster{
+		{Name: "asleep.go", Pos: dungeon.Point{X: 2, Y: 1}, HP: 30, MaxHP: 30, ATK: 2, Awake: false},
+	}
+	// Target is asleep: dagger deals double damage (P.ATK 3 + 1 = 4 -> roll 3..5, doubled is 6..10)
+	mult := sD.daggerCritical(&sD.level().Monsters[0])
+	if mult != 2 {
+		t.Errorf("expected daggerCritical multiplier 2 for sleeping monster, got %d", mult)
+	}
+	sD.Apply("l")
+	dmgSleeping := 30 - sD.level().Monsters[0].HP
+	if dmgSleeping < 6 || dmgSleeping > 10 {
+		t.Errorf("expected sleeping crit damage 6..10, got %d", dmgSleeping)
+	}
+
+	// Target is now awake, no stash: normal damage (3..5)
+	multAwake := sD.daggerCritical(&sD.level().Monsters[0])
+	if multAwake != 1 {
+		t.Errorf("expected daggerCritical multiplier 1 for awake monster without stash, got %d", multAwake)
+	}
+	hpAwakeBefore := sD.level().Monsters[0].HP
+	sD.Apply("l")
+	dmgAwake := hpAwakeBefore - sD.level().Monsters[0].HP
+	if dmgAwake < 3 || dmgAwake > 5 {
+		t.Errorf("expected awake dagger damage 3..5, got %d", dmgAwake)
+	}
+
+	// Target is awake, but player in git stash stealth: double damage
+	sD.P.StashTurns = 2
+	multStash := sD.daggerCritical(&sD.level().Monsters[0])
+	if multStash != 2 {
+		t.Errorf("expected daggerCritical multiplier 2 while stashed, got %d", multStash)
+	}
+	hpStashBefore := sD.level().Monsters[0].HP
+	sD.Apply("l")
+	dmgStash := hpStashBefore - sD.level().Monsters[0].HP
+	if dmgStash < 6 || dmgStash > 10 {
+		t.Errorf("expected stashed dagger damage 6..10, got %d", dmgStash)
+	}
+}
+
+// TestWeaponDirectInterfaces verifies direct method calls for spearReachAttack,
+// hammerKnockback, and daggerCritical, including boundary and dead-monster handling.
+func TestWeaponDirectInterfaces(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"------|",
+		"|@....|",
+		"------|",
+	})
+	s := New(d)
+
+	// Direct spearReachAttack without spear returns false
+	if s.spearReachAttack(dungeon.Point{X: 1, Y: 0}) {
+		t.Errorf("spearReachAttack should return false when unarmed")
+	}
+
+	// Equip spear
+	s.P.Weapon = &dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Spear, BonusATK: 2}
+	// No monster at distance 2 -> false
+	if s.spearReachAttack(dungeon.Point{X: 1, Y: 0}) {
+		t.Errorf("spearReachAttack should return false when tile 2 is empty")
+	}
+
+	// Living monster at distance 2 -> true
+	s.level().Monsters = append(s.level().Monsters, dungeon.Monster{
+		Name: "m.go", Pos: dungeon.Point{X: 3, Y: 1}, HP: 15, MaxHP: 15, ATK: 2,
+	})
+	if !s.spearReachAttack(dungeon.Point{X: 1, Y: 0}) {
+		t.Errorf("spearReachAttack should return true when monster at distance 2")
+	}
+	if s.level().Monsters[0].HP >= 15 {
+		t.Errorf("monster should have taken damage from direct spearReachAttack")
+	}
+
+	// Dead monster at distance 2 -> false
+	s.level().Monsters[0].HP = 0
+	if s.spearReachAttack(dungeon.Point{X: 1, Y: 0}) {
+		t.Errorf("spearReachAttack should return false when monster is dead")
+	}
+
+	// Living monster at tile 1 blocks spear reach attack to tile 2
+	s.level().Monsters = append(s.level().Monsters,
+		dungeon.Monster{Name: "near.go", Pos: dungeon.Point{X: 2, Y: 1}, HP: 10, MaxHP: 10, ATK: 2},
+		dungeon.Monster{Name: "far.go", Pos: dungeon.Point{X: 3, Y: 1}, HP: 10, MaxHP: 10, ATK: 2},
+	)
+	if s.spearReachAttack(dungeon.Point{X: 1, Y: 0}) {
+		t.Errorf("spearReachAttack should return false when tile 1 holds living monster")
+	}
+
+	// Dead monster at tile 1 allows spear reach attack to tile 2
+	s.level().Monsters[1].HP = 0 // near.go is dead
+	if !s.spearReachAttack(dungeon.Point{X: 1, Y: 0}) {
+		t.Errorf("spearReachAttack should succeed when intervening monster is dead")
+	}
+
+	// Direct hammerKnockback
+	s.level().Monsters = nil // clear monsters from earlier spear checks
+	s.P.Weapon = &dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Hammer, BonusATK: 3}
+	hm := &dungeon.Monster{Name: "h.go", Pos: dungeon.Point{X: 2, Y: 1}, HP: 10, MaxHP: 10, ATK: 2}
+	// Knockback into open floor (3,1)
+	s.hammerKnockback(hm, dungeon.Point{X: 1, Y: 0})
+	if hm.Pos != (dungeon.Point{X: 3, Y: 1}) || hm.HP != 10 {
+		t.Errorf("expected knockback to (3,1) without damage, got pos %v hp %d", hm.Pos, hm.HP)
+	}
+
+	// Knockback into wall (4,1)
+	s.level().Set(dungeon.Point{X: 4, Y: 1}, dungeon.WallV)
+	s.hammerKnockback(hm, dungeon.Point{X: 1, Y: 0})
+	if hm.Pos != (dungeon.Point{X: 3, Y: 1}) || hm.HP != 8 {
+		t.Errorf("expected collision damage of 2 and pos unchanged, got pos %v hp %d", hm.Pos, hm.HP)
+	}
+
+	// Dead monster does nothing in hammerKnockback
+	hm.HP = 0
+	s.hammerKnockback(hm, dungeon.Point{X: 1, Y: 0})
+	if hm.HP != 0 {
+		t.Errorf("dead monster should not take collision damage")
+	}
+
+	// Nil monster does nothing in hammerKnockback
+	s.hammerKnockback(nil, dungeon.Point{X: 1, Y: 0})
+
+	// Direct daggerCritical on nil returns 1
+	if s.daggerCritical(nil) != 1 {
+		t.Errorf("daggerCritical(nil) should return 1")
+	}
+}
+
+// TestHammerCollisionKill verifies that collision damage can slay a monster and award XP.
+func TestHammerCollisionKill(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"----|",
+		"|@.||",
+		"----|",
+	})
+	s := New(d)
+	s.P.Weapon = &dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Hammer, BonusATK: 3}
+	s.level().Monsters = []dungeon.Monster{
+		{Name: "fragile.go", Pos: dungeon.Point{X: 2, Y: 1}, HP: 1, MaxHP: 10, ATK: 1},
+	}
+	// Initial hit would normally kill anyway with roll, so test hammerKnockback directly with 2 HP against wall at (3,1)
+	hm := &s.level().Monsters[0]
+	hm.HP = 2
+	killsBefore := s.Kills
+	xpBefore := s.P.XP
+	s.hammerKnockback(hm, dungeon.Point{X: 1, Y: 0})
+	if hm.HP > 0 {
+		t.Errorf("monster should be slain by collision, HP: %d", hm.HP)
+	}
+	if s.Kills != killsBefore+1 {
+		t.Errorf("expected kills incremented, got %d", s.Kills)
+	}
+	if s.P.XP != xpBefore+10 {
+		t.Errorf("expected XP awarded for collision kill, got %d", s.P.XP)
+	}
+}
+
+// TestSwordBonusDamage verifies that a sword adds BonusATK to damage without extra effects.
+func TestSwordBonusDamage(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"----|",
+		"|@.||",
+		"----|",
+	})
+	s := New(d)
+	s.P.Weapon = &dungeon.Item{Kind: dungeon.Weapon, Archetype: dungeon.Sword, BonusATK: 4}
+	s.level().Monsters = []dungeon.Monster{
+		{Name: "target.go", Pos: dungeon.Point{X: 2, Y: 1}, HP: 50, MaxHP: 50, ATK: 1},
+	}
+	// Player ATK is 3 + 4 = 7. Damage roll is 6..8.
+	s.Apply("l")
+	dmg := 50 - s.level().Monsters[0].HP
+	if dmg < 6 || dmg > 8 {
+		t.Errorf("expected sword damage 6..8, got %d", dmg)
+	}
+	// Monster should not be knocked back
+	if s.level().Monsters[0].Pos != (dungeon.Point{X: 2, Y: 1}) {
+		t.Errorf("sword attack should not knock back monster")
+	}
+}
