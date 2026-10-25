@@ -380,6 +380,11 @@ func (s *State) monsterAt(p dungeon.Point) *dungeon.Monster {
 	return nil
 }
 
+// MonsterAt returns the living monster at p, or nil.
+func (s *State) MonsterAt(p dungeon.Point) *dungeon.Monster {
+	return s.monsterAt(p)
+}
+
 // move tries to step by d and reports whether a turn passed.
 // A living monster on the target tile is attacked instead of entered.
 // With a spear equipped, a living monster 2 tiles away is attacked if the

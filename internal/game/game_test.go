@@ -57,8 +57,8 @@ func TestRender(t *testing.T) {
 	want := "Welcome to demo! Slay server.go, Devourer of Weekends on depth 1.\n" +
 		"------\n|@.!.m|\n------\n" + // corners (6,0) and (6,2) are outside radius 5
 		strings.Repeat("\n", 18) +
-		"Depth 1/1  HP 30/30  ATK 3  LV 1  XP 0/20  T 0  /\n" +
-		"hjkl/arrows move  . wait  > descend  i inventory  ? help  q quit\n"
+		"Depth 1/1  HP 30/30  ATK 3  EN 50  [Unarmed]  LV 1  XP 0/20  T 0  /\n" +
+		"hjkl/arrows move  . wait  > descend  1-3 git powers  i inventory  ? help  q quit\n"
 	if got := s.Render(); got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}
@@ -1233,7 +1233,7 @@ func TestGitEnergyExplorationAndSlay(t *testing.T) {
 	s.level().Monsters[0].Pos = dungeon.Point{X: s.P.Pos.X + 1, Y: s.P.Pos.Y}
 	s.level().Monsters[0].HP = 1
 	s.P.GitEnergy = 50
-	s.Apply("l") // slay bug.go with 1 HP
+	s.Apply("l")             // slay bug.go with 1 HP
 	if s.P.GitEnergy != 65 { // 50 + 15
 		t.Errorf("expected GitEnergy 65 after slay, got %d", s.P.GitEnergy)
 	}
@@ -1274,4 +1274,3 @@ func TestGitPowersInsufficientEnergy(t *testing.T) {
 		t.Errorf("expected 'Not enough Git Energy.' msg, got %v", s.Msgs)
 	}
 }
-

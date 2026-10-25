@@ -14,7 +14,7 @@ const (
 	// mapRows is the number of map rows; the screen is 1 message row + map + status + help = 24.
 	mapRows = dungeon.MapH
 	// helpLine is the last row while the run is going.
-	helpLine = "hjkl/arrows move  . wait  > descend  i inventory  ? help  q quit"
+	helpLine = "hjkl/arrows move  . wait  > descend  1-3 git powers  i inventory  ? help  q quit"
 	// overLine replaces helpLine once the run is over.
 	overLine = "Game over. Press any key."
 	// invHeader is the first row of the inventory screen under the message row.
@@ -103,10 +103,16 @@ func (s *State) cell(l *dungeon.Level, p dungeon.Point) rune {
 			return '@'
 		}
 		if m := s.monsterAt(p); m != nil {
+			if m.Telegraph {
+				return '!'
+			}
 			return m.Glyph
 		}
 		for _, it := range l.Items {
 			if it.Pos == p {
+				if it.Kind == dungeon.Weapon {
+					return ')'
+				}
 				return it.Kind.Glyph()
 			}
 		}
@@ -130,8 +136,13 @@ func (s *State) place() string {
 
 // status builds the status row. XP shows the threshold for the next level (20*Level).
 func (s *State) status() string {
-	return fmt.Sprintf("Depth %d/%d  HP %d/%d  ATK %d  LV %d  XP %d/%d  T %d  %s",
-		s.Depth+1, len(s.D.Levels), s.P.HP, s.P.MaxHP, s.P.ATK, s.P.Level, s.P.XP, 20*s.P.Level, s.Turn, s.place())
+	wpn := "[Unarmed]"
+	if s.P.Weapon != nil {
+		wpn = fmt.Sprintf("[Wpn: %s]", s.P.Weapon.Name())
+	}
+	res := fmt.Sprintf("Depth %d/%d  HP %d/%d  ATK %d  EN %d  %s  LV %d  XP %d/%d  T %d  %s",
+		s.Depth+1, len(s.D.Levels), s.P.HP, s.P.MaxHP, s.P.ATK, s.P.GitEnergy, wpn, s.P.Level, s.P.XP, 20*s.P.Level, s.Turn, s.place())
+	return cut(res, screenW)
 }
 
 // Card is the shareable end-of-run summary, 44 columns wide.
@@ -185,11 +196,14 @@ func (s *State) helpRows() []string {
 			fmt.Sprintf("on depth %d (the deepest level) to win. If your HP reaches 0, the run is over.", len(s.D.Levels)),
 			"Folders are rooms and deeper folders are deeper levels. Files are monsters.",
 			"",
-			"KEYS",
+			"KEYS & GIT POWERS",
 			"  h j k l or arrows   move. Walk into a monster to attack it.",
-			"  .                   wait one turn",
+			"  .                   rest: wait safely to recover HP (1 HP per 3 turns)",
 			"  >                   go down (stand on the > tile first)",
-			"  i                   open your pack; press a-j to use an item",
+			"  1                   git stash (30 EN): 2-turn stealth to reposition",
+			"  2                   git revert (25 EN): undo damage taken last turn",
+			"  3                   git blame (20 EN): stun adjacent enemy & halve ATK",
+			"  i                   open your pack; press a-j to use or equip an item",
 			"  ?                   show this help again",
 			"  q                   quit",
 		}
@@ -201,6 +215,7 @@ func (s *State) helpRows() []string {
 		"  & the boss",
 		"  a-z a monster: a file. More lines = more HP, more commits = harder hits",
 		"  ! potion (from a TODO comment): heals up to 10 HP",
+		"  ) weapon: grants bonus ATK (Sword, Spear, Hammer, Dagger)",
 		"  ? scroll (from a FIXME comment): +1 attack",
 		"  . floor",
 		"  # corridor",
@@ -208,7 +223,10 @@ func (s *State) helpRows() []string {
 		"  - | walls",
 		"  > stairs",
 		"",
-		"Monsters sleep until you come close. Slaying them gives XP and levels you up.",
-		"There is no saving and no going back up.",
+		"WEAPONS & COMBAT",
+		"  Weapons give ATK bonuses. Spear: 2-tile reach. Hammer: knockback.",
+		"  Dagger: 2x damage on sleeping enemy. Sword: reliable extra attack.",
+		"  Enemy telegraphs heavy blow with ! alert: step away to dodge!",
+		"  Rest: press . safely to recover HP. Slaying enemies grants EN.",
 	}
 }
