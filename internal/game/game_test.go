@@ -740,3 +740,155 @@ func TestSwordBonusDamage(t *testing.T) {
 		t.Errorf("sword attack should not knock back monster")
 	}
 }
+
+func TestRestingAndMaxHPConstraint(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"----|",
+		"|@..|",
+		"----|",
+	})
+	s := New(d)
+	s.P.HP = 20
+	s.P.MaxHP = 30
+
+	// 4 safe wait turns should restore 1 HP
+	for i := 0; i < 4; i++ {
+		s.Apply(".")
+	}
+	if s.P.HP != 21 {
+		t.Errorf("expected HP to heal to 21 after 4 safe waits, got %d", s.P.HP)
+	}
+	if !slices.Contains(s.Msgs, "You rest quietly. +1 HP.") {
+		t.Errorf("expected rest message, got %v", s.Msgs)
+	}
+
+	// Review Focus #3: resting at MaxHP must not overflow or send spurious messages
+	s.P.HP = s.P.MaxHP
+	s.Msgs = nil
+	for i := 0; i < 4; i++ {
+		s.Apply(".")
+	}
+	if s.P.HP > s.P.MaxHP {
+		t.Errorf("HP overflowed MaxHP: %d > %d", s.P.HP, s.P.MaxHP)
+	}
+	if len(s.Msgs) > 0 {
+		t.Errorf("expected no messages when resting at MaxHP, got %v", s.Msgs)
+	}
+}
+
+func TestRestingInterruptedByAwakeMonsters(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"--------|",
+		"|@.....||",
+		"--------|",
+	})
+	s := New(d)
+	s.P.HP = 20
+	s.P.MaxHP = 30
+
+	// 3 safe waits
+	for i := 0; i < 3; i++ {
+		s.Apply(".")
+	}
+	if s.P.HP != 20 {
+		t.Errorf("expected HP 20 after 3 waits, got %d", s.P.HP)
+	}
+
+	// Add awake monster in FOV at distance 3 (Pos X:4, Y:1)
+	s.level().Monsters = append(s.level().Monsters, dungeon.Monster{
+		Name: "bug.go", Pos: dungeon.Point{X: 4, Y: 1}, HP: 10, MaxHP: 10, ATK: 2, Awake: true,
+	})
+
+	if !s.hasAwakeMonstersInFOV() {
+		t.Fatalf("expected hasAwakeMonstersInFOV to be true")
+	}
+
+	// 4th wait should NOT heal because awake monster is in FOV; counter resets
+	s.Apply(".")
+	if s.P.HP != 20 {
+		t.Errorf("expected HP to stay 20 with awake monster in FOV, got %d", s.P.HP)
+	}
+
+	// Defeat or remove monster
+	s.level().Monsters[0].HP = 0
+	if s.hasAwakeMonstersInFOV() {
+		t.Errorf("dead monster in FOV should not count as awake monster")
+	}
+
+	// Now 4 safe waits should restore 1 HP from the fresh reset
+	for i := 0; i < 4; i++ {
+		s.Apply(".")
+	}
+	if s.P.HP != 21 {
+		t.Errorf("expected HP to heal to 21 after 4 fresh safe waits, got %d", s.P.HP)
+	}
+}
+
+func TestRestingInterruptedByMovement(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"----|",
+		"|@..|",
+		"----|",
+	})
+	s := New(d)
+	s.P.HP = 20
+	s.P.MaxHP = 30
+
+	// 3 safe waits
+	for i := 0; i < 3; i++ {
+		s.Apply(".")
+	}
+
+	// Step right then left
+	s.Apply("l")
+	s.Apply("h")
+
+	// Wait 1 turn - should NOT heal because movement broke the streak
+	s.Apply(".")
+	if s.P.HP != 20 {
+		t.Errorf("movement should have reset safe rest counter, HP is %d", s.P.HP)
+	}
+
+	// 3 more waits (total 4 since reset) -> now heals
+	for i := 0; i < 3; i++ {
+		s.Apply(".")
+	}
+	if s.P.HP != 21 {
+		t.Errorf("expected HP 21 after completing 4 waits post-movement, got %d", s.P.HP)
+	}
+}
+
+func TestRestingDirectInterfaces(t *testing.T) {
+	d := dungeon.FromArt([]string{
+		"-------------------|",
+		"|@.................|",
+		"-------------------|",
+	})
+	s := New(d)
+	s.P.HP = 20
+	s.P.MaxHP = 30
+
+	// hasAwakeMonstersInFOV with no monsters
+	if s.hasAwakeMonstersInFOV() {
+		t.Errorf("expected false with no monsters")
+	}
+
+	// Monster far out of FOV (fovRadius is 5)
+	s.level().Monsters = append(s.level().Monsters, dungeon.Monster{
+		Name: "far.go", Pos: dungeon.Point{X: 15, Y: 1}, HP: 10, MaxHP: 10, ATK: 2, Awake: true,
+	})
+	if s.Visible(dungeon.Point{X: 15, Y: 1}) {
+		t.Fatalf("monster at (15,1) should be out of FOV from (1,1)")
+	}
+	if s.hasAwakeMonstersInFOV() {
+		t.Errorf("awake monster outside FOV should not count")
+	}
+
+	// Directly call safeRestTurn 4 times
+	for i := 0; i < 4; i++ {
+		s.safeRestTurn()
+	}
+	if s.P.HP != 21 {
+		t.Errorf("expected direct safeRestTurn to heal to 21, got %d", s.P.HP)
+	}
+}

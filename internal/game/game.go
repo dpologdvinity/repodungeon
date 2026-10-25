@@ -83,6 +83,8 @@ type State struct {
 	KilledBy string
 	// LootTodo and LootFixme count potions and scrolls picked up, for the card (SPEC 7.8).
 	LootTodo, LootFixme int // items picked up
+	// restWaitCount counts consecutive safe resting turns waiting with ".".
+	restWaitCount int
 	// seen holds one flat W*H grid per level. A true tile was in view at some point and is drawn from memory.
 	seen [][]bool
 	// helpPage is the page of the help screen being shown (0 or 1). It only matters in Help mode.
@@ -139,6 +141,35 @@ func (s *State) updateFOV() {
 			m.Awake = true
 		}
 	}
+	if s.hasAwakeMonstersInFOV() {
+		s.restWaitCount = 0
+	}
+}
+
+// hasAwakeMonstersInFOV reports whether any awake, living monster is in the player's FOV.
+func (s *State) hasAwakeMonstersInFOV() bool {
+	l := s.level()
+	for i := range l.Monsters {
+		m := &l.Monsters[i]
+		if m.HP > 0 && m.Awake && s.Visible(m.Pos) {
+			return true
+		}
+	}
+	return false
+}
+
+// safeRestTurn handles natural healing when waiting safely without awake monsters in FOV.
+// Every 4 safe wait turns restores 1 HP up to MaxHP.
+func (s *State) safeRestTurn() {
+	if s.Done() || s.P.HP <= 0 || s.hasAwakeMonstersInFOV() || s.P.HP >= s.P.MaxHP {
+		s.restWaitCount = 0
+		return
+	}
+	s.restWaitCount++
+	if s.restWaitCount%4 == 0 {
+		s.P.HP = min(s.P.MaxHP, s.P.HP+1)
+		s.say("You rest quietly. +1 HP.")
+	}
 }
 
 // say appends a formatted message to Msgs.
@@ -193,16 +224,19 @@ func (s *State) Apply(key string) {
 // descend does its own turn accounting (see descend).
 func (s *State) playKey(key string) bool {
 	if d, ok := moves[key]; ok {
+		s.restWaitCount = 0
 		return s.move(d)
 	}
 	switch key {
 	case ".":
+		s.safeRestTurn()
 		return true
 	case "i":
 		s.Mode = Inventory
 	case "?":
 		s.OpenHelp()
 	case ">":
+		s.restWaitCount = 0
 		s.descend()
 	}
 	return false
@@ -216,6 +250,7 @@ func (s *State) inventoryKey(key string) bool {
 	case key == "esc" || key == "i":
 		s.Mode = Play
 	case len(key) == 1 && key[0] >= 'a' && key[0] <= 'j' && int(key[0]-'a') < len(s.P.Inv):
+		s.restWaitCount = 0
 		s.use(int(key[0] - 'a'))
 		s.Mode = Play
 		return true
