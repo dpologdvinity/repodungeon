@@ -358,9 +358,10 @@ func (s *State) pickUp(t dungeon.Point) {
 		autoEquip := it.Kind == dungeon.Weapon && s.P.Weapon == nil && len(s.P.Inv) == 0
 		s.P.Inv = append(s.P.Inv, it)
 		s.say("You pick up a %s.", it.Kind.Name())
-		if it.Kind == dungeon.Potion {
+		switch it.Kind {
+		case dungeon.Potion:
 			s.LootTodo++
-		} else if it.Kind == dungeon.Scroll {
+		case dungeon.Scroll:
 			s.LootFixme++
 		}
 		if autoEquip {
