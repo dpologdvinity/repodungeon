@@ -8,9 +8,10 @@
 
 Turn the git repository you are standing in into a small roguelike.
 Directories are rooms, files are monsters, TODO and FIXME comments are loot,
-and the boss is the file that changed most often. The same commit always gives
-the same dungeon. Combat is turn-based, bump-to-attack, with permadeath. When
-the run ends, a shareable text card is printed.
+tool files drop weapons, and the boss is the file that changed most often.
+The same commit always gives the same dungeon. Combat is turn-based with weapons,
+active Git Powers, telegraphed monster attacks, and permadeath. When the run
+ends, a shareable text card is printed.
 
 repodungeon is read-only: it only runs `git` commands that read, and only
 committed files appear (no ignored or untracked files).
@@ -53,16 +54,19 @@ repodungeon          # or: repodungeon -C path/to/repo
 The game opens on a two-page how-to-play screen. Press any key to turn the page
 and again to start; press `?` at any time to read it again.
 
-The map is in color (walls gray, you green, monsters red, the boss bold red,
-potions magenta, scrolls cyan). Set `NO_COLOR=1` for plain text. The card printed
-at the end is always plain.
+The map is in color (walls gray, you green, monsters red, telegraphed attacks
+bold red, the boss bold red, weapons bold blue, potions magenta, scrolls cyan).
+Set `NO_COLOR=1` for plain text. The card printed at the end is always plain.
 
 | Key | Action |
 |---|---|
-| `h` `j` `k` `l` or arrows | move / attack |
-| `.` | wait a turn |
+| `h` `j` `k` `l` or arrows | move / attack (spears reach 2 tiles, hammers knock back) |
+| `.` | rest 1 turn (recovers 1 HP every 4 safe turns) |
+| `1` | `git stash`: phase out for 2 turns of stealth (cost 30 EN) |
+| `2` | `git revert`: heal back damage taken on last enemy hit (cost 25 EN) |
+| `3` | `git blame`: stun adjacent enemy 2 turns and halve ATK (cost 20 EN) |
 | `>` | descend (on the stairs) |
-| `i` | inventory (`a`-`j` uses an item, `esc` closes) |
+| `i` | inventory (`a`-`j` uses/equips an item, `esc` closes) |
 | `?` | show the how-to-play screen again |
 | `q` | quit |
 
@@ -81,6 +85,21 @@ at the end is always plain.
 - Each `TODO` becomes a potion (heals up to 10 HP) and each `FIXME` a scroll
   (+1 ATK). A room holds at most 3 potions and 2 scrolls; the item remembers
   which file it came from.
+- Build and tool files (`Makefile`, `Dockerfile`, `go.mod`, package configs,
+  scripts) spawn weapons (glyph `)`). Weapons change how you attack:
+  - **Spear**: attacks enemies up to 2 tiles away without stepping into melee.
+  - **Hammer**: knocks enemies back 1 tile (+2 collision damage if blocked).
+  - **Dagger**: deals double critical damage against sleeping or stashed foes.
+  - **Sword**: delivers reliable bonus melee attack damage.
+  Every floor is guaranteed at least one weapon.
+- Slaying file monsters (+15) and discovering new floor tiles (+1) grants
+  Git Energy (up to 100). Spend energy on tactical Git Powers:
+  - `1`: `git stash` (30 EN) to escape swarms and reposition unseen.
+  - `2`: `git revert` (25 EN) to undo damage suffered during the last enemy turn.
+  - `3`: `git blame` (20 EN) to stun and halve the attack power of adjacent foes.
+- Monsters telegraph heavy strikes one turn in advance (marked by `!`). Step back
+  or around corners to make their heavy blows miss completely.
+- In rooms cleared of awake monsters, resting (`.`) safely recovers 1 HP every 4 turns.
 - The boss waits in the last room of the deepest level: the file with the most
   commits touching it, with a title like "Whisperer of Flaky Tests".
 - Slay monsters to gain XP and levels. Reach the boss and kill it to win. Die
