@@ -3,7 +3,7 @@ module github.com/dpologdvinity/repodungeon
 go 1.26.0
 
 require (
-	charm.land/bubbletea/v2 v2.1.0
+	charm.land/bubbletea/v2 v2.1.1
 	github.com/charmbracelet/x/term v0.2.2
 )
 
