@@ -135,7 +135,8 @@ jobs:
           args: release --snapshot --clean --skip=publish
       - name: Build the apt repository with a throwaway key
         run: |
-          export GNUPGHOME="$(mktemp -d)"
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
           gpg --batch --pinentry-mode loopback --passphrase '' --quick-generate-key "ci <ci@example.com>" ed25519 sign never
           key=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')
           mkdir debs && cp dist/*.deb debs/
