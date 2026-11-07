@@ -1,0 +1,3 @@
+# typos: allow game-design jargon.
+[default.extend-words]
+criticals = "criticals"
