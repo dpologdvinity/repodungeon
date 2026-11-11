@@ -78,7 +78,7 @@ func roomName(dir string) string {
 // A level may hold at most MaxRooms rooms (the 3x3 grid). When a level has
 // more directories, the MaxRooms-1 busiest ones (most files, ties by name)
 // keep their own room and all the others fold into one trailing "misc/" room.
-// Rooms are otherwise sorted by name. See docs/SPEC.md section 5.2.
+// Rooms are otherwise sorted by name. See docs/specs/2026-10-23-repodungeon-v0.1-design.md section 5.2.
 func Plan(files []repo.File) [][]RoomSpec {
 	byDir := map[string][]repo.File{}
 	dirs := map[string]bool{}

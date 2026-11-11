@@ -2,8 +2,9 @@
 
 Thanks for helping with `repodungeon`. This page covers local setup, the
 checks CI runs, and how to send a change. For how the code is organised read
-[ARCHITECTURE.md](ARCHITECTURE.md); for exact game rules read
-[docs/SPEC.md](docs/SPEC.md), which is the source of truth for behavior.
+[ARCHITECTURE.md](ARCHITECTURE.md); for exact game rules read the specs in
+[`docs/specs/`](docs/specs/): the [v0.1 design](docs/specs/2026-10-23-repodungeon-v0.1-design.md), then later
+feature specs, which change it. Where they disagree, the newer spec wins.
 
 ## Setup
 
@@ -61,7 +62,7 @@ To check the release build locally: `goreleaser check` and
   (`*.local.*`). Shared agent config (`AGENTS.md`, `.claude/settings.json`,
   `.codex/`) is committed; see [AGENTS.md](AGENTS.md).
 - Open pull requests against `master`. Describe what changed and why, and link
-  the SPEC section if a rule changed. All CI jobs must pass.
+  the spec section if a rule changed. All CI jobs must pass.
 
 ## Releases
 

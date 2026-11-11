@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go (`go 1.26.0`), `charm.land/bubbletea/v2` v2.1.0, stdlib `flag`/`os/exec`/`regexp`, GoReleaser v2, GitHub Actions.
 
-**Spec:** `docs/SPEC.md`
+**Spec:** `docs/specs/2026-10-23-repodungeon-v0.1-design.md`
 
 ## Global Constraints
 

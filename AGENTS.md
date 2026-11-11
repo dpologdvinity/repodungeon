@@ -9,8 +9,9 @@ repo. `CLAUDE.md` only imports this file.
 runs in: directories are rooms, files are monsters and the most-changed file is
 the boss. The same commit always gives the same dungeon. Humans start with
 [README.md](README.md). Read [ARCHITECTURE.md](ARCHITECTURE.md) for design and
-[docs/SPEC.md](docs/SPEC.md) for the rules. The spec is the source of truth for
-behavior.
+[docs/specs/](docs/specs/) for the rules: the v0.1 design, then later feature
+specs that change it. Where they disagree, the newer spec wins. Code comments
+such as `(SPEC 7.3)` cite sections of the v0.1 design spec.
 
 ## Layout
 
@@ -69,9 +70,8 @@ or `*.local.*` files.
   [superpowers](https://github.com/obra/superpowers) flow: brainstorm, then
   write a spec, then write a plan, then do subagent-driven implementation and
   code review. The finished documents are kept as the design record:
-  - v0.1: [docs/SPEC.md](docs/SPEC.md) and [docs/plans/2026-10-23-repodungeon-v0.1.md](docs/plans/2026-10-23-repodungeon-v0.1.md)
-  - Later features: `docs/specs/YYYY-MM-DD-<topic>-design.md` and
-    `docs/plans/YYYY-MM-DD-<topic>.md`
+  - Specs: `docs/specs/YYYY-MM-DD-<topic>-design.md`
+  - Plans: `docs/plans/YYYY-MM-DD-<topic>.md`
 - **Claude Code plugins:** `.claude/settings.json` enables `gopls-lsp`,
   `commit-commands` and `ponytail`, which pushes for the smallest complete
   change.

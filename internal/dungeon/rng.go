@@ -3,7 +3,7 @@
 // Generation is pure and deterministic: the same repo.Repo always gives the
 // same Dungeon. The package does no I/O, reads no clock and uses no global
 // random state. All randomness comes from a seeded RNG (see RNG), and the seed
-// comes from the head commit hash. See docs/SPEC.md section 5.
+// comes from the head commit hash. See docs/specs/2026-10-23-repodungeon-v0.1-design.md section 5.
 package dungeon
 
 import "strconv"
@@ -15,7 +15,7 @@ import "strconv"
 // machine and every Go version. math/rand makes no such promise. The order of
 // RNG calls during generation is also part of the format. Adding, removing or
 // reordering a call changes every dungeon, so do not change it. See
-// docs/SPEC.md section 5.1.
+// docs/specs/2026-10-23-repodungeon-v0.1-design.md section 5.1.
 type RNG struct{ s uint64 }
 
 // NewRNG returns a generator whose state starts at seed.

@@ -16,7 +16,7 @@ var ErrNoFiles = errors.New("no text files to fight")
 
 // MapW and MapH are the size of every level map in tiles. Rooms sit on a 3x3
 // grid of cells, each 26 wide and 7 tall (see buildLevel), plus a 1-column
-// left margin: 1 + 3*26 = 79 <= 80 and 3*7 = 21. See docs/SPEC.md section 5.3.
+// left margin: 1 + 3*26 = 79 <= 80 and 3*7 = 21. See docs/specs/2026-10-23-repodungeon-v0.1-design.md section 5.3.
 const MapW, MapH = 80, 21
 
 // Point is a map position. X grows to the right and Y grows downwards.
@@ -193,7 +193,7 @@ type Level struct {
 	HasStairs bool
 }
 
-// Dungeon is the whole generated game world. See docs/SPEC.md section 5.5.
+// Dungeon is the whole generated game world. See docs/specs/2026-10-23-repodungeon-v0.1-design.md section 5.5.
 type Dungeon struct {
 	// Seed is the RNG seed taken from the head commit hash.
 	Seed uint64
@@ -268,7 +268,7 @@ func (l *Level) line(a, b Point) {
 // Start is the center of the first room. If this is not the last level, the
 // stairs go at the center of the last room, or at the bottom-right interior
 // corner when there is only one room (that is not the start tile). The RNG
-// call order is part of the format; do not change it. See docs/SPEC.md
+// call order is part of the format; do not change it. See docs/specs/2026-10-23-repodungeon-v0.1-design.md
 // section 5.3.
 func buildLevel(rooms []RoomSpec, last bool, rng *RNG) *Level {
 	l := &Level{W: MapW, H: MapH, Tiles: make([]Tile, MapW*MapH)}
@@ -360,7 +360,7 @@ func Ascii(l *Level) string {
 // Each argument is one level. Characters use the tileGlyphs table. A '>' sets
 // the level stairs. The dungeon has fixed metadata (Seed 42, repo "demo").
 // Rows may differ in length; missing cells are Rock. It panics on an unknown
-// character. See docs/SPEC.md section 5.6.
+// character. See docs/specs/2026-10-23-repodungeon-v0.1-design.md section 5.6.
 func FromArt(levels ...[]string) *Dungeon {
 	d := &Dungeon{Seed: 42, Repo: "demo", Short: "abcdef0", BossName: "server.go, Devourer of Weekends"}
 	for _, rows := range levels {
@@ -435,7 +435,7 @@ func (k ItemKind) Glyph() rune {
 // the call order (all of level 0, then level 1, and so on; within a level the
 // layout first, then each room in order) is part of the format. The boss sits
 // in the last room of the last level. It returns ErrNoFiles if the repo has no
-// text file. See docs/SPEC.md sections 5.1 to 5.4.
+// text file. See docs/specs/2026-10-23-repodungeon-v0.1-design.md sections 5.1 to 5.4.
 func Generate(r *repo.Repo) (*Dungeon, error) {
 	// Pick the boss: highest churn, then lines, then smallest path.
 	var boss *repo.File
@@ -482,7 +482,7 @@ func Generate(r *repo.Repo) (*Dungeon, error) {
 //   - Scrolls: up to 2, one per FIXME, in file order.
 //   - Boss: only when hasBoss is set; it is appended last.
 //
-// See docs/SPEC.md section 5.4.
+// See docs/specs/2026-10-23-repodungeon-v0.1-design.md section 5.4.
 func populate(l *Level, room Room, rs RoomSpec, boss *repo.File, hasBoss bool, bossName string, rng *RNG) {
 	// Never place anything on the start or the stairs.
 	used := map[Point]bool{l.Start: true}

@@ -1,9 +1,12 @@
 # Architecture
 
 This document explains how `repodungeon` is built, why it is split the way it
-is, and where to change things. For what the game does, read
-[`docs/SPEC.md`](docs/SPEC.md). That file is the source of truth for behavior.
-For how it was built step by step, see [`docs/plans/2026-10-23-repodungeon-v0.1.md`](docs/plans/2026-10-23-repodungeon-v0.1.md).
+is, and where to change things. For what the game does, read the specs in
+[`docs/specs/`](docs/specs/): the [v0.1 design](docs/specs/2026-10-23-repodungeon-v0.1-design.md), then later
+feature specs, which change it. Where they disagree, the newer spec wins. Code
+comments such as `(SPEC 7.3)` cite sections of the v0.1 design spec. For how it
+was built step by step, see the
+[v0.1 plan](docs/plans/2026-10-23-repodungeon-v0.1.md).
 
 ## The idea in one paragraph
 

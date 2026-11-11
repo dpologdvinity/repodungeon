@@ -144,7 +144,7 @@ refresh them with `go test ./internal/dungeon/ -update` and review the diff.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and checks,
 [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organised, and
-[docs/SPEC.md](docs/SPEC.md) for the exact rules.
+[docs/specs/](docs/specs/) for the exact rules.
 
 ## License
 

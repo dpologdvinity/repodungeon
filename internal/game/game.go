@@ -3,7 +3,8 @@
 // It has no Bubble Tea, terminal or clock dependency. State.Apply takes one
 // key string (as Bubble Tea's KeyPressMsg.String() would give it) and changes
 // the state. State.Render and State.Card turn the state into plain text.
-// Rules are specified in docs/SPEC.md sections 6 and 7.
+// Rules are specified in docs/specs/2026-10-23-repodungeon-v0.1-design.md sections 6 and 7,
+// as changed by docs/specs/2026-10-25-combat-and-weapons-overhaul-design.md.
 package game
 
 import (
