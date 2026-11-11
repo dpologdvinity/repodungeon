@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-25  
 **Topic:** Combat, Weapons, and Git Powers Overhaul  
-**Status:** In Review  
+**Status:** Implemented (v0.6.0)  
 
 ---
 
