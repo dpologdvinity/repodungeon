@@ -1,2 +1,18 @@
-.env
+# Secrets and per-machine overrides (keep the example file).
+.env*
+!.env.example
+*.local.*
+lefthook-local.yml
+
+# Build and test output.
 dist/
+/repodungeon
+/repodungeon.exe
+*.test
+*.out
+
+# Agent scratch: brainstorm sessions, worktrees, browser captures, handoffs.
+.superpowers/
+.worktrees/
+.playwright-mcp/
+HANDOFF.md

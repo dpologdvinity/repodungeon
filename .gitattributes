@@ -1,0 +1,2 @@
+# Store text with LF everywhere; Go and shell scripts break on CRLF.
+* text=auto eol=lf
