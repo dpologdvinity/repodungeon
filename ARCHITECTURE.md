@@ -3,7 +3,7 @@
 This document explains how `repodungeon` is built, why it is split the way it
 is, and where to change things. For what the game does, read
 [`docs/SPEC.md`](docs/SPEC.md). That file is the source of truth for behavior.
-For how it was built step by step, see [`docs/PLAN.md`](docs/PLAN.md).
+For how it was built step by step, see [`docs/plans/2026-10-23-repodungeon-v0.1.md`](docs/plans/2026-10-23-repodungeon-v0.1.md).
 
 ## The idea in one paragraph
 

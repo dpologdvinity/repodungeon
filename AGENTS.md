@@ -69,7 +69,7 @@ or `*.local.*` files.
   [superpowers](https://github.com/obra/superpowers) flow: brainstorm, then
   write a spec, then write a plan, then do subagent-driven implementation and
   code review. The finished documents are kept as the design record:
-  - v0.1: [docs/SPEC.md](docs/SPEC.md) and [docs/PLAN.md](docs/PLAN.md)
+  - v0.1: [docs/SPEC.md](docs/SPEC.md) and [docs/plans/2026-10-23-repodungeon-v0.1.md](docs/plans/2026-10-23-repodungeon-v0.1.md)
   - Later features: `docs/specs/YYYY-MM-DD-<topic>-design.md` and
     `docs/plans/YYYY-MM-DD-<topic>.md`
 - **Claude Code plugins:** `.claude/settings.json` enables `gopls-lsp`,
