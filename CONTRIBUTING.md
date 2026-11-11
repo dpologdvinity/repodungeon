@@ -57,8 +57,9 @@ To check the release build locally: `goreleaser check` and
   `type(scope): description`, for example `fix(repo): skip missing blobs`.
   Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`.
 - One logical change per commit. Keep commits small.
-- Never commit secrets (`.env`, keys, tokens) or tool artifacts such as
-  `.claude/`, `CLAUDE.md`, `AGENTS.md`.
+- Never commit secrets (`.env`, keys, tokens) or personal overrides
+  (`*.local.*`). Shared agent config (`AGENTS.md`, `.claude/settings.json`,
+  `.codex/`) is committed; see [AGENTS.md](AGENTS.md).
 - Open pull requests against `master`. Describe what changed and why, and link
   the SPEC section if a rule changed. All CI jobs must pass.
 
